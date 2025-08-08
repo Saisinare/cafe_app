@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'home_page.dart';
-import 'products_page.dart';
-import 'invoices_page.dart';
-import 'subscription_page.dart';
+import 'package:my_app/pages/settings/settings_page.dart';
+import 'home/home_page.dart';
+import 'inventory/inventory_page.dart';
+import 'party/party_page.dart';
+
+
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -16,9 +18,9 @@ class _MainLayoutState extends State<MainLayout> {
 
   final List<Widget> _pages = const [
     HomeScreen(),
-    ProductsScreen(),
-    InvoicesScreen(),
-    SubscriptionScreen(),
+    PartyScreen(),
+    InventoryScreen(),
+    SettingsScreen()
   ];
 
   void _onNavTap(int index) {
@@ -39,9 +41,9 @@ class _MainLayoutState extends State<MainLayout> {
         onTap: _onNavTap,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.coffee), label: 'Products'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt), label: 'Invoices'),
-          BottomNavigationBarItem(icon: Icon(Icons.star_border), label: 'Subscription'),
+          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Party'),
+          BottomNavigationBarItem(icon: Icon(Icons.inventory), label: 'Inventory'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );

@@ -40,19 +40,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.fixed,
-        onTap: _onNavTap,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.coffee), label: 'Products'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt), label: 'Invoices'),
-          BottomNavigationBarItem(icon: Icon(Icons.star_border), label: 'Subscription'),
-        ],
-      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
