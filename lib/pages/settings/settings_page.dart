@@ -5,8 +5,17 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SafeArea(
-      child: Center(child: Text("Settings Page", style: TextStyle(fontSize: 22))),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Settings"),
+        centerTitle: true,
+      ),
+      body: const Center(
+        child: Text(
+          "Settings Page",
+          style: TextStyle(fontSize: 20),
+        ),
+      ),
     );
   }
 }
