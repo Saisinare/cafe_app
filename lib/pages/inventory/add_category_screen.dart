@@ -1,3 +1,4 @@
+// add_category_screen.dart
 import 'package:flutter/material.dart';
 
 class AddCategoryScreen extends StatefulWidget {
@@ -14,7 +15,10 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Add Category")),
+      appBar: AppBar(
+        title: const Text("Add Category"),
+        backgroundColor: const Color(0xFF6F4E37),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -22,13 +26,19 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
           child: Column(
             children: [
               TextFormField(
-                decoration: const InputDecoration(labelText: "Category Name"),
+                decoration: const InputDecoration(
+                  labelText: "Category Name",
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
                 validator: (value) =>
-                    value!.isEmpty ? "Please enter category name" : null,
-                onSaved: (value) => categoryName = value!,
+                    value == null || value.trim().isEmpty ? "Please enter category name" : null,
+                onSaved: (value) => categoryName = value!.trim(),
               ),
               const SizedBox(height: 20),
               ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6F4E37),
+                ),
                 onPressed: () {
                   if (_formKey.currentState!.validate()) {
                     _formKey.currentState!.save();
