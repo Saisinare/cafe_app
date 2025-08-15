@@ -10,165 +10,211 @@ class AddPartyScreen extends StatefulWidget {
 class _AddPartyScreenState extends State<AddPartyScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  String name = "";
-  String phone = "";
-  String email = "";
-  String category = "Supplier";
-  String address = "";
-  String billingState = "";
-  String billingPostal = "";
-  String deliveryState = "";
-  String deliveryPostal = "";
-  String gstNo = "";
-  String billingType = "Prepaid";
-  DateTime? dob;
+  final Map<String, String> partyData = {
+    "name": "",
+    "phone": "",
+    "email": "",
+    "type": "",
+    "address": "",
+    "billingState": "",
+    "billingPostal": "",
+    "deliveryState": "",
+    "deliveryPostal": "",
+    "gstNo": "",
+    "billingType": "",
+    "dob": "",
+  };
+
+  final List<String> partyTypes = ["Customer", "Supplier", "Partner"];
+  final List<String> billingTypes = ["Prepaid", "Postpaid", "Credit"];
 
   @override
   Widget build(BuildContext context) {
+    const primaryColor = Color(0xFF6F4E37);
+    const lightBg = Color(0xFFF5EFE6);
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Add Party")),
-      body: SingleChildScrollView(
+      backgroundColor: lightBg,
+      appBar: AppBar(
+        title: const Text(
+          "Add Party",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        backgroundColor: primaryColor,
+        elevation: 4,
+      ),
+      body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
-          child: Column(
+          child: ListView(
             children: [
-              // Party Name
-              TextFormField(
-                decoration: const InputDecoration(labelText: "Party Name *"),
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Required" : null,
-                onSaved: (value) => name = value!,
+              _buildInputCard(
+                icon: Icons.person,
+                label: "Name",
+                hint: "Enter full name",
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? "Please enter a name" : null,
+                onSaved: (v) => partyData["name"] = v!.trim(),
               ),
-              // Phone Number
-              TextFormField(
-                decoration: const InputDecoration(labelText: "Phone Number *"),
-                keyboardType: TextInputType.phone,
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Required" : null,
-                onSaved: (value) => phone = value!,
+              _buildInputCard(
+                icon: Icons.phone,
+                label: "Phone",
+                hint: "Enter phone number",
+                keyboard: TextInputType.phone,
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? "Please enter a phone number" : null,
+                onSaved: (v) => partyData["phone"] = v!.trim(),
               ),
-              // Email
-              TextFormField(
-                decoration: const InputDecoration(labelText: "Email ID *"),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Required" : null,
-                onSaved: (value) => email = value!,
+              _buildInputCard(
+                icon: Icons.email,
+                label: "Email",
+                hint: "Enter email address",
+                keyboard: TextInputType.emailAddress,
+                onSaved: (v) => partyData["email"] = v!.trim(),
               ),
-              // Party Category
-              DropdownButtonFormField<String>(
-                value: category,
-                items: ["Supplier", "Customer"]
-                    .map((type) => DropdownMenuItem(
-                          value: type,
-                          child: Text(type),
-                        ))
-                    .toList(),
-                onChanged: (value) => category = value!,
-                decoration: const InputDecoration(labelText: "Party Category *"),
+              _buildDropdownCard(
+                icon: Icons.category,
+                label: "Type",
+                items: partyTypes,
+                onChanged: (v) => partyData["type"] = v ?? "",
               ),
-              // Address (Optional)
-              TextFormField(
-                decoration:
-                    const InputDecoration(labelText: "Address (Optional)"),
-                onSaved: (value) => address = value ?? "",
+              _buildInputCard(
+                icon: Icons.home,
+                label: "Address",
+                hint: "Enter address",
+                maxLines: 2,
+                onSaved: (v) => partyData["address"] = v!.trim(),
               ),
-              // Billing State
-              TextFormField(
-                decoration: const InputDecoration(labelText: "Billing State"),
-                onSaved: (value) => billingState = value ?? "",
+              _buildInputCard(
+                icon: Icons.location_city,
+                label: "Billing State",
+                hint: "Enter billing state",
+                onSaved: (v) => partyData["billingState"] = v!.trim(),
               ),
-              // Billing Postal Code
-              TextFormField(
-                decoration:
-                    const InputDecoration(labelText: "Billing Postal Code"),
-                onSaved: (value) => billingPostal = value ?? "",
+              _buildInputCard(
+                icon: Icons.markunread_mailbox,
+                label: "Billing Postal Code",
+                hint: "Enter postal code",
+                keyboard: TextInputType.number,
+                onSaved: (v) => partyData["billingPostal"] = v!.trim(),
               ),
-              // Delivery State
-              TextFormField(
-                decoration: const InputDecoration(labelText: "Delivery State"),
-                onSaved: (value) => deliveryState = value ?? "",
+              _buildInputCard(
+                icon: Icons.local_shipping,
+                label: "Delivery State",
+                hint: "Enter delivery state",
+                onSaved: (v) => partyData["deliveryState"] = v!.trim(),
               ),
-              // Delivery Postal Code
-              TextFormField(
-                decoration:
-                    const InputDecoration(labelText: "Delivery Postal Code"),
-                onSaved: (value) => deliveryPostal = value ?? "",
+              _buildInputCard(
+                icon: Icons.local_post_office,
+                label: "Delivery Postal Code",
+                hint: "Enter postal code",
+                keyboard: TextInputType.number,
+                onSaved: (v) => partyData["deliveryPostal"] = v!.trim(),
               ),
-              // GST No. (Optional)
-              TextFormField(
-                decoration:
-                    const InputDecoration(labelText: "GST No. (Optional)"),
-                onSaved: (value) => gstNo = value ?? "",
+              _buildInputCard(
+                icon: Icons.numbers,
+                label: "GST No.",
+                hint: "Enter GST number",
+                onSaved: (v) => partyData["gstNo"] = v!.trim(),
               ),
-              // Billing Type
-              DropdownButtonFormField<String>(
-                value: billingType,
-                items: ["Prepaid", "Postpaid"]
-                    .map((type) => DropdownMenuItem(
-                          value: type,
-                          child: Text(type),
-                        ))
-                    .toList(),
-                onChanged: (value) => billingType = value!,
-                decoration: const InputDecoration(labelText: "Billing Type *"),
+              _buildDropdownCard(
+                icon: Icons.payment,
+                label: "Billing Type",
+                items: billingTypes,
+                onChanged: (v) => partyData["billingType"] = v ?? "",
               ),
-              // Date of Birth
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      dob == null
-                          ? "Date of Birth: Not Selected"
-                          : "Date of Birth: ${dob!.day}/${dob!.month}/${dob!.year}",
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.calendar_today),
-                    onPressed: () async {
-                      DateTime? pickedDate = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime(2000),
-                        firstDate: DateTime(1900),
-                        lastDate: DateTime.now(),
-                      );
-                      if (pickedDate != null) {
-                        setState(() {
-                          dob = pickedDate;
-                        });
-                      }
-                    },
-                  ),
-                ],
+              _buildInputCard(
+                icon: Icons.cake,
+                label: "Date of Birth",
+                hint: "DD/MM/YYYY",
+                keyboard: TextInputType.datetime,
+                onSaved: (v) => partyData["dob"] = v!.trim(),
               ),
-              const SizedBox(height: 20),
 
-              // Submit button
+              const SizedBox(height: 24),
               ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 5,
+                ),
                 onPressed: () {
                   if (_formKey.currentState!.validate()) {
                     _formKey.currentState!.save();
-                    Navigator.pop(context, {
-                      "name": name,
-                      "phone": phone,
-                      "email": email,
-                      "type": category,
-                      "address": address,
-                      "billingState": billingState,
-                      "billingPostal": billingPostal,
-                      "deliveryState": deliveryState,
-                      "deliveryPostal": deliveryPostal,
-                      "gstNo": gstNo,
-                      "billingType": billingType,
-                      "dob": dob != null ? dob!.toIso8601String() : ""
-                    });
+                    Navigator.pop(context, Map<String, String>.from(partyData));
                   }
                 },
-                child: const Text("Add Party"),
+                child: const Text(
+                  "Save Party",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputCard({
+    required IconData icon,
+    required String label,
+    required String hint,
+    TextInputType keyboard = TextInputType.text,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+    required void Function(String?) onSaved,
+  }) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 3,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: TextFormField(
+          keyboardType: keyboard,
+          maxLines: maxLines,
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: hint,
+            prefixIcon: Icon(icon, color: const Color(0xFF6F4E37)),
+            border: InputBorder.none,
+          ),
+          validator: validator,
+          onSaved: onSaved,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDropdownCard({
+    required IconData icon,
+    required String label,
+    required List<String> items,
+    required void Function(String?) onChanged,
+  }) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 3,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: DropdownButtonFormField<String>(
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: Icon(icon, color: const Color(0xFF6F4E37)),
+            border: InputBorder.none,
+          ),
+          items: items
+              .map((item) =>
+                  DropdownMenuItem(value: item, child: Text(item)))
+              .toList(),
+          onChanged: onChanged,
         ),
       ),
     );

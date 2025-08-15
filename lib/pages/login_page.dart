@@ -1,28 +1,48 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import './sign_up_page.dart';
+import './main_layout.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
-  @override 
+  @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  bool _obscurePassword = true; // <-- Add this in your State
+  bool _obscurePassword = true;
 
-  void _login() {
-    String email = emailController.text;
-    String password = passwordController.text;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-    // Replace this with your login logic
-    print('Email: $email');
-    print('Password: $password');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Login clicked')),
-    );
+  Future<void> _login() async {
+    String email = emailController.text.trim();
+    String password = passwordController.text.trim();
+
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login Successful!')),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const MainLayout()),
+      );
+    } on FirebaseAuthException catch (e) {
+      String message = '';
+      if (e.code == 'user-not-found') {
+        message = 'No user found for that email.';
+      } else if (e.code == 'wrong-password') {
+        message = 'Incorrect password.';
+      } else {
+        message = e.message ?? 'Login failed';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
   }
 
   @override
@@ -37,7 +57,7 @@ class _LoginPageState extends State<LoginPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 20),
-                Text(
+                const Text(
                   "Welcome Back!",
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
@@ -46,9 +66,9 @@ class _LoginPageState extends State<LoginPage> {
                 // Email Input
                 TextField(
                   controller: emailController,
-                  decoration:  InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Email',
-                    prefixIcon: Icon(Icons.email),
+                    prefixIcon: const Icon(Icons.email),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20.0),
                     ),
@@ -56,15 +76,13 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 20),
 
-
-
                 // Password Input
                 TextField(
                   controller: passwordController,
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
                     hintText: 'Password',
-                    prefixIcon: Icon(Icons.lock),
+                    prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -88,11 +106,11 @@ class _LoginPageState extends State<LoginPage> {
                   child: ElevatedButton(
                     onPressed: _login,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent, // <-- Set your custom background color here
-                      foregroundColor: Colors.white, 
-                            shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20), 
-                          ),
+                      backgroundColor: Colors.blueAccent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                     ),
                     child: const Padding(
                       padding: EdgeInsets.symmetric(vertical: 14.0),
@@ -104,10 +122,10 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 10),
                 TextButton(
                   onPressed: () {
-                        Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const SignUpPage()),
-                      );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const SignUpPage()),
+                    );
                   },
                   child: const Text("Don't have an account? Sign up"),
                 ),

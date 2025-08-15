@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import './login_page.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -16,18 +18,34 @@ class _SignUpPageState extends State<SignUpPage> {
   final passwordController = TextEditingController();
   bool _obscurePassword = true;
 
-  void _signUp() {
-    // Handle sign-up logic here
-    print("Cafe Name: ${cafeNameController.text}");
-    print("Owner Name: ${ownerNameController.text}");
-    print("Phone: ${phoneController.text}");
-    print("Address: ${addressController.text}");
-    print("Email: ${emailController.text}");
-    print("Password: ${passwordController.text}");
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sign Up clicked')),
-    );
+  Future<void> _signUp() async {
+    String email = emailController.text.trim();
+    String password = passwordController.text.trim();
+
+    try {
+      await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign Up Successful! Please login.')),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+      );
+    } on FirebaseAuthException catch (e) {
+      String message = '';
+      if (e.code == 'weak-password') {
+        message = 'Password is too weak.';
+      } else if (e.code == 'email-already-in-use') {
+        message = 'Email is already registered.';
+      } else {
+        message = e.message ?? 'Sign up failed';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
   }
 
   Widget _buildTextField({
