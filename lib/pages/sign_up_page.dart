@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import './login_page.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -21,20 +22,54 @@ class _SignUpPageState extends State<SignUpPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   Future<void> _signUp() async {
+    String cafeName = cafeNameController.text.trim();
+    String ownerName = ownerNameController.text.trim();
+    String phone = phoneController.text.trim();
+    String address = addressController.text.trim();
     String email = emailController.text.trim();
     String password = passwordController.text.trim();
 
+    if (cafeName.isEmpty ||
+        ownerName.isEmpty ||
+        phone.isEmpty ||
+        address.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all fields')),
+      );
+      return;
+    }
+
     try {
-      await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      // 1. Create user in Firebase Auth
+      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      String uid = userCredential.user!.uid;
+
+      // 2. Store details in Firestore
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'cafeName': cafeName,
+        'ownerName': ownerName,
+        'phone': phone,
+        'address': address,
+        'email': email,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sign Up Successful! Please login.')),
       );
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const LoginPage()),
       );
     } on FirebaseAuthException catch (e) {
-      String message = '';
+      String message;
       if (e.code == 'weak-password') {
         message = 'Password is too weak.';
       } else if (e.code == 'email-already-in-use') {
