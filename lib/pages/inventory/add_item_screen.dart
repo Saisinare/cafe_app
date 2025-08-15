@@ -1,15 +1,12 @@
 // add_item_screen.dart
 import 'package:flutter/material.dart';
+import '../../services/firestore_service.dart';
 
 class AddItemScreen extends StatefulWidget {
   final List<String> categories;
   final Map<String, String>? existingItem;
 
-  const AddItemScreen({
-    super.key,
-    required this.categories,
-    this.existingItem,
-  });
+  const AddItemScreen({super.key, required this.categories, this.existingItem});
 
   @override
   State<AddItemScreen> createState() => _AddItemScreenState();
@@ -24,6 +21,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
   late final TextEditingController _imageCtrl;
   late final TextEditingController _descCtrl;
   late String selectedCategory;
+  bool _saving = false;
 
   bool get isEditing => widget.existingItem != null;
 
@@ -37,9 +35,16 @@ class _AddItemScreenState extends State<AddItemScreen> {
     _imageCtrl = TextEditingController(text: existing?['imageUrl'] ?? '');
     _descCtrl = TextEditingController(text: existing?['description'] ?? '');
 
-    // default category (prefer existing; else first non-All)
-    selectedCategory = existing?['category'] ??
-        (widget.categories.firstWhere((c) => c != "All", orElse: () => widget.categories.first));
+    // initialize selectedCategory defensively
+    final preferred = existing?['category'];
+    final available = widget.categories.where((c) => c != "All").map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    if (preferred != null && available.contains(preferred)) {
+      selectedCategory = preferred;
+    } else if (available.isNotEmpty) {
+      selectedCategory = available.first;
+    } else {
+      selectedCategory = "Uncategorized";
+    }
   }
 
   @override
@@ -52,22 +57,48 @@ class _AddItemScreenState extends State<AddItemScreen> {
     super.dispose();
   }
 
-  void _onSave() {
+  Future<void> _onSave() async {
     if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
 
-    final Map<String, String> item = {
-      'name': _nameCtrl.text.trim(),
-      'quantity': _qtyCtrl.text.trim(),
-      'price': _priceCtrl.text.trim(),
-      'category': selectedCategory,
-      'imageUrl': _imageCtrl.text.trim(),
-      'description': _descCtrl.text.trim(),
-    };
+    final name = _nameCtrl.text.trim();
+    final qty = int.tryParse(_qtyCtrl.text.trim()) ?? 0;
+    final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
+    final imageUrl = _imageCtrl.text.trim();
+    final desc = _descCtrl.text.trim();
 
-    Navigator.pop(context, item);
+    try {
+      if (isEditing) {
+        final id = widget.existingItem!['id']!;
+        await FirestoreService.instance.updateItem(
+          id: id,
+          name: name,
+          stockQty: qty,
+          price: price,
+          category: selectedCategory,
+          imageUrl: imageUrl,
+          description: desc,
+        );
+      } else {
+        await FirestoreService.instance.addItem(
+          name: name,
+          stockQty: qty,
+          price: price,
+          category: selectedCategory,
+          imageUrl: imageUrl,
+          description: desc,
+        );
+      }
+      if (mounted) Navigator.pop(context); // stream will refresh data
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _onDelete() async {
+    if (!isEditing) return;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -81,23 +112,47 @@ class _AddItemScreenState extends State<AddItemScreen> {
     );
 
     if (confirm == true) {
-      // return special action so caller can remove the item
-      Navigator.pop(context, {'action': 'delete', 'item': widget.existingItem});
+      final id = widget.existingItem!['id']!;
+      await FirestoreService.instance.deleteItem(id);
+      if (mounted) Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isEdit = isEditing;
+
+    // prepare category options for dropdown: exclude "All" and dedupe
+    final rawCats = widget.categories.where((c) => c != "All").map((s) => s.trim()).toList();
+    final seen = <String>{};
+    final catList = <String>[];
+    for (var c in rawCats) {
+      if (c.isNotEmpty && !seen.contains(c)) {
+        seen.add(c);
+        catList.add(c);
+      }
+    }
+
+    // dropdown value: make sure selectedCategory exists in options
+    String? dropdownValue;
+    if (catList.isEmpty) {
+      dropdownValue = null;
+    } else if (catList.contains(selectedCategory)) {
+      dropdownValue = selectedCategory;
+    } else {
+      dropdownValue = catList.first;
+      // ensure selectedCategory updates (only schedule UI update)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => selectedCategory = dropdownValue!);
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? "Edit Cafe Item" : "Add Cafe Item"),
+        title: Text(isEdit ? "Edit Cafe Item" : "Add Cafe Item"),
         backgroundColor: const Color(0xFF6F4E37),
         actions: [
-          if (isEditing)
-            IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: _onDelete,
-            )
+          if (isEdit) IconButton(icon: const Icon(Icons.delete), onPressed: _onDelete),
         ],
       ),
       body: Padding(
@@ -106,28 +161,18 @@ class _AddItemScreenState extends State<AddItemScreen> {
           key: _formKey,
           child: ListView(
             children: [
-              // Name
               TextFormField(
                 controller: _nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: "Item Name",
-                  prefixIcon: Icon(Icons.local_cafe),
-                ),
+                decoration: const InputDecoration(labelText: "Item Name", prefixIcon: Icon(Icons.local_cafe)),
                 validator: (v) => v == null || v.trim().isEmpty ? "Please enter item name" : null,
               ),
-
               const SizedBox(height: 12),
-
-              // Quantity & Price row
               Row(
                 children: [
                   Expanded(
                     child: TextFormField(
                       controller: _qtyCtrl,
-                      decoration: const InputDecoration(
-                        labelText: "Quantity",
-                        prefixIcon: Icon(Icons.confirmation_num_outlined),
-                      ),
+                      decoration: const InputDecoration(labelText: "Quantity", prefixIcon: Icon(Icons.confirmation_num_outlined)),
                       keyboardType: TextInputType.number,
                       validator: (v) => v == null || v.trim().isEmpty ? "Enter qty" : null,
                     ),
@@ -136,37 +181,22 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _priceCtrl,
-                      decoration: const InputDecoration(
-                        labelText: "Price (₹)",
-                        prefixIcon: Icon(Icons.price_check),
-                      ),
+                      decoration: const InputDecoration(labelText: "Price (₹)", prefixIcon: Icon(Icons.price_check)),
                       keyboardType: TextInputType.numberWithOptions(decimal: true),
                       validator: (v) => v == null || v.trim().isEmpty ? "Enter price" : null,
                     ),
                   ),
                 ],
               ),
-
               const SizedBox(height: 12),
-
-              // Category selector
               DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: "Category",
-                  prefixIcon: Icon(Icons.category),
-                ),
-                value: selectedCategory,
-                items: widget.categories
-                    .where((c) => c != "All")
-                    .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
-                    .toList(),
+                decoration: const InputDecoration(labelText: "Category", prefixIcon: Icon(Icons.category)),
+                value: dropdownValue,
+                items: catList.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
                 onChanged: (v) => setState(() => selectedCategory = v ?? selectedCategory),
                 validator: (v) => v == null || v.isEmpty ? "Please select category" : null,
               ),
-
               const SizedBox(height: 12),
-
-              // Image URL
               TextFormField(
                 controller: _imageCtrl,
                 decoration: const InputDecoration(
@@ -176,28 +206,17 @@ class _AddItemScreenState extends State<AddItemScreen> {
                 ),
                 keyboardType: TextInputType.url,
               ),
-
               const SizedBox(height: 12),
-
-              // Description
               TextFormField(
                 controller: _descCtrl,
-                decoration: const InputDecoration(
-                  labelText: "Short Description (optional)",
-                  prefixIcon: Icon(Icons.notes),
-                ),
+                decoration: const InputDecoration(labelText: "Short Description (optional)", prefixIcon: Icon(Icons.notes)),
                 maxLines: 2,
               ),
-
               const SizedBox(height: 18),
-
               ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6F4E37),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                onPressed: _onSave,
-                child: Text(isEditing ? "Save Changes" : "Add Item", style: const TextStyle(fontSize: 16)),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6F4E37), padding: const EdgeInsets.symmetric(vertical: 14)),
+                onPressed: _saving ? null : _onSave,
+                child: _saving ? const CircularProgressIndicator(color: Colors.white) : Text(isEdit ? "Save Changes" : "Add Item", style: const TextStyle(fontSize: 16)),
               ),
             ],
           ),
