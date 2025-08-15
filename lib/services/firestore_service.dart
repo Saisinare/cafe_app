@@ -1,15 +1,21 @@
 // lib/services/firestore_service.dart
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:uuid/uuid.dart';
 
 class FirestoreService {
   FirestoreService._();
   static final instance = FirestoreService._();
+
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final _uuid = const Uuid();
 
   CollectionReference get _items => _db.collection('items');
   CollectionReference get _categories => _db.collection('categories');
 
-  // Convert doc -> Map<String,String> matching your UI fields
+  // ---- Helpers: convert doc -> UI map (your UI uses Map<String,String>)
   Map<String, String> _docToUiMap(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>? ?? {};
     return {
@@ -23,21 +29,26 @@ class FirestoreService {
     };
   }
 
-  // Stream all items (real-time)
+  // ---------- Streams ----------
   Stream<List<Map<String, String>>> streamItems() {
-    return _items.orderBy('name').snapshots().map((snap) =>
-        snap.docs.map((d) => _docToUiMap(d)).toList());
+    return _items.orderBy('name').snapshots().map(
+        (snap) => snap.docs.map((d) => _docToUiMap(d)).toList());
   }
 
-  // Stream items filtered by category (pass category name)
   Stream<List<Map<String, String>>> streamItemsByCategory(String category) {
-    return _items.where('category', isEqualTo: category)
+    return _items
+        .where('category', isEqualTo: category)
         .orderBy('name')
         .snapshots()
         .map((snap) => snap.docs.map((d) => _docToUiMap(d)).toList());
   }
 
-  // Add a new item
+  Stream<List<String>> streamCategories() {
+    return _categories.orderBy('name').snapshots().map((snap) =>
+        snap.docs.map((d) => (d.data() as Map<String, dynamic>)['name'].toString()).toList());
+  }
+
+  // ---------- CRUD ----------
   Future<String> addItem({
     required String name,
     required int stockQty,
@@ -46,6 +57,7 @@ class FirestoreService {
     String? imageUrl,
     String? description,
   }) async {
+    final now = FieldValue.serverTimestamp();
     final doc = await _items.add({
       'name': name,
       'stockQty': stockQty,
@@ -53,13 +65,12 @@ class FirestoreService {
       'category': category,
       'imageUrl': imageUrl ?? '',
       'description': description ?? '',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
+      'createdAt': now,
+      'updatedAt': now,
     });
     return doc.id;
   }
 
-  // Update item by docId
   Future<void> updateItem({
     required String id,
     String? name,
@@ -81,26 +92,26 @@ class FirestoreService {
     await _items.doc(id).update(data);
   }
 
-  // Delete item
   Future<void> deleteItem(String id) async {
+    // optional: delete subcollections like stock_moves if used
     await _items.doc(id).delete();
   }
 
-  // Adjust stock safely via transaction
+  // ---------- Stock adjustment (transactional) ----------
   Future<void> adjustStock({
     required String id,
-    required int delta, // negative to reduce
-    required String reason, // optional reason
+    required int delta,
+    required String reason,
   }) async {
     final docRef = _items.doc(id);
     await _db.runTransaction((tx) async {
       final snap = await tx.get(docRef);
       if (!snap.exists) throw Exception('Item not found');
-      final current = (snap.data() as Map<String, dynamic>)['stockQty'] ?? 0;
-      final newQty = (current as num).toInt() + delta;
+      final data = snap.data() as Map<String, dynamic>;
+      final current = (data['stockQty'] ?? 0) as num;
+      final newQty = current.toInt() + delta;
       if (newQty < 0) throw Exception('Insufficient stock');
       tx.update(docRef, {'stockQty': newQty, 'updatedAt': FieldValue.serverTimestamp()});
-      // optional: add log under items/{id}/stock_moves
       final moveRef = docRef.collection('stock_moves').doc();
       tx.set(moveRef, {
         'delta': delta,
@@ -110,13 +121,39 @@ class FirestoreService {
     });
   }
 
-  // Categories
-  Stream<List<String>> streamCategories() {
-    return _categories.orderBy('name').snapshots().map((snap) =>
-        snap.docs.map((d) => (d.data() as Map<String, dynamic>)['name'].toString()).toList());
+  // ---------- Storage: upload and delete images ----------
+  /// Upload a File (mobile) to `item_images/` and return the download URL.
+  Future<String> uploadItemImage(File file, {String? fileName}) async {
+    final ext = file.path.split('.').last;
+    final name = fileName ?? '${_uuid.v4()}.$ext';
+    final ref = _storage.ref().child('item_images').child(name);
+    final uploadTask = ref.putFile(file);
+    final snapshot = await uploadTask.whenComplete(() {});
+    final downloadUrl = await snapshot.ref.getDownloadURL();
+    return downloadUrl;
   }
 
-  Future<void> addCategory(String name) async {
-    await _categories.add({'name': name, 'createdAt': FieldValue.serverTimestamp()});
+  /// Delete image from storage given its download URL (ignore if not found)
+  Future<void> deleteItemImageByUrl(String downloadUrl) async {
+    try {
+      final ref = _storage.refFromURL(downloadUrl);
+      await ref.delete();
+    } catch (e) {
+      // ignore or log
+    }
+  }
+
+  // ---------- Categories ----------
+  Future<String> addCategory(String name) async {
+    final doc = await _categories.add({'name': name, 'createdAt': FieldValue.serverTimestamp()});
+    return doc.id;
+  }
+
+  Future<void> updateCategory(String id, String name) async {
+    await _categories.doc(id).update({'name': name});
+  }
+
+  Future<void> deleteCategory(String id) async {
+    await _categories.doc(id).delete();
   }
 }

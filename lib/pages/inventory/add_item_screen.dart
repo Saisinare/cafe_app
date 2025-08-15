@@ -1,5 +1,7 @@
-// add_item_screen.dart
+// lib/pages/inventory/add_item_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/firestore_service.dart';
 
 class AddItemScreen extends StatefulWidget {
@@ -14,14 +16,15 @@ class AddItemScreen extends StatefulWidget {
 
 class _AddItemScreenState extends State<AddItemScreen> {
   final _formKey = GlobalKey<FormState>();
+  final ImagePicker _picker = ImagePicker();
+  File? _pickedImage;
+  bool _saving = false;
 
   late final TextEditingController _nameCtrl;
   late final TextEditingController _qtyCtrl;
   late final TextEditingController _priceCtrl;
-  late final TextEditingController _imageCtrl;
   late final TextEditingController _descCtrl;
   late String selectedCategory;
-  bool _saving = false;
 
   bool get isEditing => widget.existingItem != null;
 
@@ -32,10 +35,8 @@ class _AddItemScreenState extends State<AddItemScreen> {
     _nameCtrl = TextEditingController(text: existing?['name'] ?? '');
     _qtyCtrl = TextEditingController(text: existing?['quantity'] ?? '1');
     _priceCtrl = TextEditingController(text: existing?['price'] ?? '');
-    _imageCtrl = TextEditingController(text: existing?['imageUrl'] ?? '');
     _descCtrl = TextEditingController(text: existing?['description'] ?? '');
 
-    // initialize selectedCategory defensively
     final preferred = existing?['category'];
     final available = widget.categories.where((c) => c != "All").map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
     if (preferred != null && available.contains(preferred)) {
@@ -52,9 +53,23 @@ class _AddItemScreenState extends State<AddItemScreen> {
     _nameCtrl.dispose();
     _qtyCtrl.dispose();
     _priceCtrl.dispose();
-    _imageCtrl.dispose();
     _descCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 80,
+      );
+      if (picked == null) return;
+      setState(() => _pickedImage = File(picked.path));
+    } catch (e) {
+      // optionally show error
+    }
   }
 
   Future<void> _onSave() async {
@@ -64,10 +79,22 @@ class _AddItemScreenState extends State<AddItemScreen> {
     final name = _nameCtrl.text.trim();
     final qty = int.tryParse(_qtyCtrl.text.trim()) ?? 0;
     final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
-    final imageUrl = _imageCtrl.text.trim();
     final desc = _descCtrl.text.trim();
 
+    String? imageUrl = widget.existingItem?['imageUrl'];
+
     try {
+      // If user picked a new local image, upload it first
+      if (_pickedImage != null) {
+        final newUrl = await FirestoreService.instance.uploadItemImage(_pickedImage!);
+        // Optionally delete old image (avoid orphaned storage files)
+        final oldUrl = widget.existingItem?['imageUrl'];
+        if (oldUrl != null && oldUrl.isNotEmpty && oldUrl != newUrl) {
+          await FirestoreService.instance.deleteItemImageByUrl(oldUrl);
+        }
+        imageUrl = newUrl;
+      }
+
       if (isEditing) {
         final id = widget.existingItem!['id']!;
         await FirestoreService.instance.updateItem(
@@ -89,7 +116,8 @@ class _AddItemScreenState extends State<AddItemScreen> {
           description: desc,
         );
       }
-      if (mounted) Navigator.pop(context); // stream will refresh data
+
+      if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
     } finally {
@@ -113,6 +141,11 @@ class _AddItemScreenState extends State<AddItemScreen> {
 
     if (confirm == true) {
       final id = widget.existingItem!['id']!;
+      // Optionally delete image from storage too
+      final oldUrl = widget.existingItem?['imageUrl'];
+      if (oldUrl != null && oldUrl.isNotEmpty) {
+        await FirestoreService.instance.deleteItemImageByUrl(oldUrl);
+      }
       await FirestoreService.instance.deleteItem(id);
       if (mounted) Navigator.pop(context);
     }
@@ -122,7 +155,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
   Widget build(BuildContext context) {
     final isEdit = isEditing;
 
-    // prepare category options for dropdown: exclude "All" and dedupe
+    // prepare category list
     final rawCats = widget.categories.where((c) => c != "All").map((s) => s.trim()).toList();
     final seen = <String>{};
     final catList = <String>[];
@@ -133,7 +166,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
       }
     }
 
-    // dropdown value: make sure selectedCategory exists in options
+    // choose dropdown value safely
     String? dropdownValue;
     if (catList.isEmpty) {
       dropdownValue = null;
@@ -141,19 +174,18 @@ class _AddItemScreenState extends State<AddItemScreen> {
       dropdownValue = selectedCategory;
     } else {
       dropdownValue = catList.first;
-      // ensure selectedCategory updates (only schedule UI update)
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => selectedCategory = dropdownValue!);
       });
     }
 
+    final existingImageUrl = widget.existingItem?['imageUrl'] ?? '';
+
     return Scaffold(
       appBar: AppBar(
         title: Text(isEdit ? "Edit Cafe Item" : "Add Cafe Item"),
         backgroundColor: const Color(0xFF6F4E37),
-        actions: [
-          if (isEdit) IconButton(icon: const Icon(Icons.delete), onPressed: _onDelete),
-        ],
+        actions: [ if (isEdit) IconButton(icon: const Icon(Icons.delete), onPressed: _onDelete) ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -161,12 +193,15 @@ class _AddItemScreenState extends State<AddItemScreen> {
           key: _formKey,
           child: ListView(
             children: [
+              // Name
               TextFormField(
                 controller: _nameCtrl,
                 decoration: const InputDecoration(labelText: "Item Name", prefixIcon: Icon(Icons.local_cafe)),
                 validator: (v) => v == null || v.trim().isEmpty ? "Please enter item name" : null,
               ),
               const SizedBox(height: 12),
+
+              // Quantity & Price
               Row(
                 children: [
                   Expanded(
@@ -189,6 +224,8 @@ class _AddItemScreenState extends State<AddItemScreen> {
                 ],
               ),
               const SizedBox(height: 12),
+
+              // Category
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: "Category", prefixIcon: Icon(Icons.category)),
                 value: dropdownValue,
@@ -197,22 +234,39 @@ class _AddItemScreenState extends State<AddItemScreen> {
                 validator: (v) => v == null || v.isEmpty ? "Please select category" : null,
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _imageCtrl,
-                decoration: const InputDecoration(
-                  labelText: "Image URL (optional)",
-                  hintText: "Paste an image URL to display in the app",
-                  prefixIcon: Icon(Icons.image),
-                ),
-                keyboardType: TextInputType.url,
+
+              // Image picker + preview
+              const Text("Image (optional)"),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  if (_pickedImage != null)
+                    ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(_pickedImage!, width: 92, height: 92, fit: BoxFit.cover))
+                  else if (existingImageUrl.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(existingImageUrl, width: 92, height: 92, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 92, height: 92, color: Colors.grey[200], child: const Icon(Icons.broken_image))),
+                    )
+                  else
+                    Container(width: 92, height: 92, color: Colors.grey[100], child: const Icon(Icons.image, size: 44)),
+
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ElevatedButton.icon(icon: const Icon(Icons.photo), label: const Text("Gallery"), onPressed: () => _pickImage(ImageSource.gallery)),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(icon: const Icon(Icons.camera_alt), label: const Text("Camera"), onPressed: () => _pickImage(ImageSource.camera)),
+                    ],
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _descCtrl,
-                decoration: const InputDecoration(labelText: "Short Description (optional)", prefixIcon: Icon(Icons.notes)),
-                maxLines: 2,
-              ),
+
+              // Description
+              TextFormField(controller: _descCtrl, decoration: const InputDecoration(labelText: "Short Description (optional)", prefixIcon: Icon(Icons.notes)), maxLines: 2),
               const SizedBox(height: 18),
+
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6F4E37), padding: const EdgeInsets.symmetric(vertical: 14)),
                 onPressed: _saving ? null : _onSave,

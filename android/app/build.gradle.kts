@@ -43,6 +43,8 @@ dependencies {
     // Firebase BoM (Kotlin DSL uses parentheses)
     implementation(platform("com.google.firebase:firebase-bom:32.1.0"))
 
+    implementation("com.google.firebase:firebase-storage-ktx")
+    
     // Firebase Authentication
     implementation("com.google.firebase:firebase-auth")
 
