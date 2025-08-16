@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:my_app/pages/inventory/add_item_screen.dart';
 import 'package:my_app/pages/settings/settings_page.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,13 +19,23 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedIndex = index;
     });
 
-    // You can later add navigation to different pages here
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Tapped: ${_navLabels[index]}")),
     );
   }
 
   static const List<String> _navLabels = ['Home', 'Products', 'Invoices', 'Subscription'];
+
+  // Options for the floating action menu
+  final List<Map<String, dynamic>> _fabOptions = [
+    {"icon": Icons.shopping_cart, "label": "Sales"},
+    {"icon": Icons.shopping_bag, "label": "Purchase"},
+    {"icon": Icons.arrow_downward, "label": "Money In"},
+    {"icon": Icons.arrow_upward, "label": "Money Out"},
+    {"icon": Icons.receipt_long, "label": "Expense"},
+    {"icon": Icons.group, "label": "Party"},
+    {"icon": Icons.inventory, "label": "Item"},
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -34,20 +46,20 @@ class _HomeScreenState extends State<HomeScreen> {
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-actions: [
-  Padding(
-    padding: const EdgeInsets.only(right: 16),
-    child: IconButton(
-      icon: const Icon(Icons.settings, color: Colors.black),
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const SettingsScreen()),
-        );
-      },
-    ),
-  ),
-],
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: IconButton(
+              icon: const Icon(Icons.settings, color: Colors.black),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                );
+              },
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -133,6 +145,41 @@ actions: [
           ],
         ),
       ),
+
+      // Floating Action Button with Menu
+floatingActionButton: SpeedDial(
+  icon: Icons.add,
+  activeIcon: Icons.close,
+  backgroundColor: Colors.blue,
+  overlayColor: Colors.black,
+  overlayOpacity: 0.4,
+  spacing: 10,
+  spaceBetweenChildren: 8,
+  children: _fabOptions.map((option) {
+    return SpeedDialChild(
+      child: Icon(option["icon"], color: Colors.white),
+      backgroundColor: Colors.blue,
+      label: option["label"],
+      labelStyle: const TextStyle(fontSize: 16),
+      onTap: () {
+        if (option["label"] == "Item") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AddItemScreen(), // make sure it's imported
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("${option["label"]} clicked")),
+          );
+        }
+      },
+    );
+  }).toList(),
+),
+
+
     );
   }
 

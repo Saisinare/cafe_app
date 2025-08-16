@@ -6,9 +6,8 @@ import '../../services/firestore_service.dart';
 class ItemDetailsScreen extends StatelessWidget {
   final Map<String, String> item;
   final String heroTag;
-  final List<String> categories;
 
-  const ItemDetailsScreen({super.key, required this.item, required this.heroTag, required this.categories});
+  const ItemDetailsScreen({super.key, required this.item, required this.heroTag});
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +20,7 @@ class ItemDetailsScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF6F4E37),
         actions: [
           IconButton(icon: const Icon(Icons.edit), onPressed: () async {
-            await Navigator.push(context, MaterialPageRoute(builder: (_) => AddItemScreen(categories: categories, existingItem: item)));
+            await Navigator.push(context, MaterialPageRoute(builder: (_) => AddItemScreen(existingItem: item)));
           }),
           IconButton(icon: const Icon(Icons.delete), onPressed: () async {
             final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(

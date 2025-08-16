@@ -26,10 +26,7 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Login Successful!')),
       );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const MainLayout()),
-      );
+      // No need to navigate manually - AuthWrapper will handle it automatically
     } on FirebaseAuthException catch (e) {
       String message = '';
       if (e.code == 'user-not-found') {

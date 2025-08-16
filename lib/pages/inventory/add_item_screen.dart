@@ -5,10 +5,9 @@ import 'package:image_picker/image_picker.dart';
 import '../../services/firestore_service.dart';
 
 class AddItemScreen extends StatefulWidget {
-  final List<String> categories;
   final Map<String, String>? existingItem;
 
-  const AddItemScreen({super.key, required this.categories, this.existingItem});
+  const AddItemScreen({super.key, this.existingItem});
 
   @override
   State<AddItemScreen> createState() => _AddItemScreenState();
@@ -37,15 +36,8 @@ class _AddItemScreenState extends State<AddItemScreen> {
     _priceCtrl = TextEditingController(text: existing?['price'] ?? '');
     _descCtrl = TextEditingController(text: existing?['description'] ?? '');
 
-    final preferred = existing?['category'];
-    final available = widget.categories.where((c) => c != "All").map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-    if (preferred != null && available.contains(preferred)) {
-      selectedCategory = preferred;
-    } else if (available.isNotEmpty) {
-      selectedCategory = available.first;
-    } else {
-      selectedCategory = "Uncategorized";
-    }
+    // Set a default category - will be updated when categories are loaded
+    selectedCategory = "Uncategorized";
   }
 
   @override
@@ -155,126 +147,294 @@ class _AddItemScreenState extends State<AddItemScreen> {
   Widget build(BuildContext context) {
     final isEdit = isEditing;
 
-    // prepare category list
-    final rawCats = widget.categories.where((c) => c != "All").map((s) => s.trim()).toList();
-    final seen = <String>{};
-    final catList = <String>[];
-    for (var c in rawCats) {
-      if (c.isNotEmpty && !seen.contains(c)) {
-        seen.add(c);
-        catList.add(c);
-      }
-    }
-
-    // choose dropdown value safely
-    String? dropdownValue;
-    if (catList.isEmpty) {
-      dropdownValue = null;
-    } else if (catList.contains(selectedCategory)) {
-      dropdownValue = selectedCategory;
-    } else {
-      dropdownValue = catList.first;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => selectedCategory = dropdownValue!);
-      });
-    }
-
-    final existingImageUrl = widget.existingItem?['imageUrl'] ?? '';
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEdit ? "Edit Cafe Item" : "Add Cafe Item"),
+        title: Text(isEdit ? 'Edit Item' : 'Add New Item'),
         backgroundColor: const Color(0xFF6F4E37),
-        actions: [ if (isEdit) IconButton(icon: const Icon(Icons.delete), onPressed: _onDelete) ],
+        actions: [
+          if (isEdit)
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: _onDelete,
+            ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              // Name
-              TextFormField(
-                controller: _nameCtrl,
-                decoration: const InputDecoration(labelText: "Item Name", prefixIcon: Icon(Icons.local_cafe)),
-                validator: (v) => v == null || v.trim().isEmpty ? "Please enter item name" : null,
-              ),
-              const SizedBox(height: 12),
+      body: StreamBuilder<List<String>>(
+        stream: FirestoreService.instance.streamCategories(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-              // Quantity & Price
-              Row(
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _qtyCtrl,
-                      decoration: const InputDecoration(labelText: "Quantity", prefixIcon: Icon(Icons.confirmation_num_outlined)),
-                      keyboardType: TextInputType.number,
-                      validator: (v) => v == null || v.trim().isEmpty ? "Enter qty" : null,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _priceCtrl,
-                      decoration: const InputDecoration(labelText: "Price (₹)", prefixIcon: Icon(Icons.price_check)),
-                      keyboardType: TextInputType.numberWithOptions(decimal: true),
-                      validator: (v) => v == null || v.trim().isEmpty ? "Enter price" : null,
-                    ),
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('Error loading categories: ${snapshot.error}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => setState(() {}),
+                    child: const Text('Retry'),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+            );
+          }
 
-              // Category
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: "Category", prefixIcon: Icon(Icons.category)),
-                value: dropdownValue,
-                items: catList.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
-                onChanged: (v) => setState(() => selectedCategory = v ?? selectedCategory),
-                validator: (v) => v == null || v.isEmpty ? "Please select category" : null,
-              ),
-              const SizedBox(height: 12),
+          // Prepare category list
+          final rawCats = snapshot.data ?? [];
+          final seen = <String>{};
+          final catList = <String>[];
+          for (var c in rawCats) {
+            final s = c.trim();
+            if (s.isNotEmpty && !seen.contains(s)) {
+              seen.add(s);
+              catList.add(s);
+            }
+          }
 
-              // Image picker + preview
-              const Text("Image (optional)"),
-              const SizedBox(height: 8),
-              Row(
+          // If no categories exist, add a default one
+          if (catList.isEmpty) {
+            catList.add("Uncategorized");
+          }
+
+          // Set selected category if not already set or if current selection is invalid
+          if (!catList.contains(selectedCategory)) {
+            selectedCategory = catList.first;
+          }
+
+          // If editing, try to use the existing item's category
+          if (isEdit && widget.existingItem != null) {
+            final existingCategory = widget.existingItem!['category'];
+            if (existingCategory != null && catList.contains(existingCategory)) {
+              selectedCategory = existingCategory;
+            }
+          }
+
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: ListView(
                 children: [
-                  if (_pickedImage != null)
-                    ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(_pickedImage!, width: 92, height: 92, fit: BoxFit.cover))
-                  else if (existingImageUrl.isNotEmpty)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(existingImageUrl, width: 92, height: 92, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 92, height: 92, color: Colors.grey[200], child: const Icon(Icons.broken_image))),
-                    )
-                  else
-                    Container(width: 92, height: 92, color: Colors.grey[100], child: const Icon(Icons.image, size: 44)),
+                  // Image picker section
+                  Center(
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: _pickedImage != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.file(_pickedImage!, fit: BoxFit.cover),
+                                )
+                              : widget.existingItem?['imageUrl']?.isNotEmpty == true
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.network(
+                                        widget.existingItem!['imageUrl']!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) =>
+                                            const Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
+                                      ),
+                                    )
+                                  : const Icon(Icons.add_a_photo, size: 48, color: Colors.grey),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6F4E37),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: PopupMenuButton<ImageSource>(
+                              icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                              onSelected: _pickImage,
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: ImageSource.camera,
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.camera_alt),
+                                      SizedBox(width: 8),
+                                      Text('Camera'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: ImageSource.gallery,
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.photo_library),
+                                      SizedBox(width: 8),
+                                      Text('Gallery'),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
 
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  // Name field
+                  TextFormField(
+                    controller: _nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Item Name',
+                      prefixIcon: Icon(Icons.inventory_2),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter item name';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Category dropdown
+                  DropdownButtonFormField<String>(
+                    value: selectedCategory,
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      prefixIcon: Icon(Icons.category),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: catList.map((category) {
+                      return DropdownMenuItem(
+                        value: category,
+                        child: Text(category),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          selectedCategory = value;
+                        });
+                      }
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please select a category';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Quantity and Price row
+                  Row(
                     children: [
-                      ElevatedButton.icon(icon: const Icon(Icons.photo), label: const Text("Gallery"), onPressed: () => _pickImage(ImageSource.gallery)),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(icon: const Icon(Icons.camera_alt), label: const Text("Camera"), onPressed: () => _pickImage(ImageSource.camera)),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _qtyCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Quantity',
+                            prefixIcon: Icon(Icons.shopping_cart),
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Required';
+                            }
+                            final qty = int.tryParse(value);
+                            if (qty == null || qty < 0) {
+                              return 'Invalid quantity';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _priceCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Price (₹)',
+                            prefixIcon: Icon(Icons.attach_money),
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Required';
+                            }
+                            final price = double.tryParse(value);
+                            if (price == null || price < 0) {
+                              return 'Invalid price';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+
+                  // Description field
+                  TextFormField(
+                    controller: _descCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Description (Optional)',
+                      prefixIcon: Icon(Icons.description),
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Save button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _saving ? null : _onSave,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6F4E37),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text(
+                              isEdit ? 'Update Item' : 'Add Item',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 12),
-
-              // Description
-              TextFormField(controller: _descCtrl, decoration: const InputDecoration(labelText: "Short Description (optional)", prefixIcon: Icon(Icons.notes)), maxLines: 2),
-              const SizedBox(height: 18),
-
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6F4E37), padding: const EdgeInsets.symmetric(vertical: 14)),
-                onPressed: _saving ? null : _onSave,
-                child: _saving ? const CircularProgressIndicator(color: Colors.white) : Text(isEdit ? "Save Changes" : "Add Item", style: const TextStyle(fontSize: 16)),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

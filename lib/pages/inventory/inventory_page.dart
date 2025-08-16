@@ -293,7 +293,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                               context,
                                               MaterialPageRoute(
                                                   builder: (_) => AddItemScreen(
-                                                      categories: categories,
                                                       existingItem: item)));
                                         } else if (value == 'delete') {
                                           final confirm = await showDialog<bool>(
@@ -335,8 +334,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                       MaterialPageRoute(
                                           builder: (context) => ItemDetailsScreen(
                                               item: item,
-                                              heroTag: "img_${item["id"]}",
-                                              categories: categories)));
+                                              heroTag: "img_${item["id"]}")));
                                 },
                               ),
                             ),
@@ -374,7 +372,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   onTap: () async {
                     Navigator.pop(context);
                     await Navigator.push(
-                        context, MaterialPageRoute(builder: (context) => AddItemScreen(categories: categories)));
+                        context, MaterialPageRoute(builder: (context) => AddItemScreen()));
                   },
                 ),
                 ListTile(

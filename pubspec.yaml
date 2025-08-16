@@ -42,7 +42,7 @@ dependencies:
   # optional but recommended for better image UX (caching + placeholders)
   cached_network_image: ^3.2.3
   firebase_storage: ^13.0.0
-
+  flutter_speed_dial: ^7.0.0
 
 dev_dependencies:
   flutter_test:
