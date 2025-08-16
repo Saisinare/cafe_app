@@ -32,322 +32,325 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // categories stream
-    return StreamBuilder<List<String>>(
-      stream: FirestoreService.instance.streamCategories(),
-      builder: (ctxCat, catSnap) {
-        final rawCats = catSnap.data ?? [];
-        // dedupe, preserve insertion order; ignore empty strings
-        final seen = <String>{};
-        final uniqueCats = <String>[];
-        for (var c in rawCats) {
-          final s = c.trim();
-          if (s.isNotEmpty && !seen.contains(s)) {
-            seen.add(s);
-            uniqueCats.add(s);
+    // Use a single stream for all items and apply filters locally
+    return StreamBuilder<List<Map<String, String>>>(
+      stream: FirestoreService.instance.streamItems(),
+      builder: (ctx, snap) {
+        final allItems = snap.data ?? [];
+        
+        // Apply category and search filters locally
+        final filteredItems = allItems.where((item) {
+          final name = item["name"]?.toLowerCase() ?? "";
+          final matchesSearch = name.contains(searchQuery.toLowerCase());
+          final matchesCategory =
+              selectedCategory == "All" || item["category"] == selectedCategory;
+          return matchesSearch && matchesCategory;
+        }).toList();
+
+        final totalItems = totalItemsFrom(allItems);
+        final stockValue = stockValueFrom(allItems);
+
+        // Get categories from items data to avoid nested streams
+        final categories = <String>["All"];
+        final seenCategories = <String>{};
+        for (var item in allItems) {
+          final category = item["category"]?.trim() ?? "";
+          if (category.isNotEmpty && !seenCategories.contains(category)) {
+            seenCategories.add(category);
+            categories.add(category);
           }
         }
-        final categories = <String>["All", ...uniqueCats];
 
-        // items stream (do NOT mutate selectedCategory here)
-        final itemsStream = selectedCategory == "All"
-            ? FirestoreService.instance.streamItems()
-            : FirestoreService.instance.streamItemsByCategory(selectedCategory);
+        // Determine safe dropdown value: either null or exact match
+        final dropdownValue =
+            categories.contains(selectedCategory) ? selectedCategory : null;
 
-        return StreamBuilder<List<Map<String, String>>>(
-          stream: itemsStream,
-          builder: (ctx, snap) {
-            final items = snap.data ?? [];
-            final filteredItems = items.where((item) {
-              final name = item["name"]?.toLowerCase() ?? "";
-              final matchesSearch = name.contains(searchQuery.toLowerCase());
-              final matchesCategory =
-                  selectedCategory == "All" || item["category"] == selectedCategory;
-              return matchesSearch && matchesCategory;
-            }).toList();
-
-            final totalItems = totalItemsFrom(items);
-            final stockValue = stockValueFrom(items);
-
-            // Determine safe dropdown value: either null or exact match
-            final dropdownValue =
-                categories.contains(selectedCategory) ? selectedCategory : null;
-
-            return Scaffold(
-              appBar: AppBar(
-                elevation: 0,
-                flexibleSpace: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF6F4E37), Color(0xFFB77B57)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
+        return Scaffold(
+          appBar: AppBar(
+            elevation: 0,
+            flexibleSpace: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF6F4E37), Color(0xFFB77B57)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                title: const Text("Cafe Inventory"),
-                centerTitle: true,
-                actions: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Row(
+              ),
+            ),
+            title: const Text("Cafe Inventory"),
+            centerTitle: true,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(
+                  children: [
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text("$totalItems", style: const TextStyle(fontSize: 12)),
-                            const Text("Items", style: TextStyle(fontSize: 10)),
-                          ],
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text("₹${stockValue.toStringAsFixed(0)}",
-                                style: const TextStyle(fontSize: 12)),
-                            const Text("Stock value", style: TextStyle(fontSize: 10)),
-                          ],
-                        ),
-                        const SizedBox(width: 10),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8.0),
-                          child: DropdownButton<String>(
-                            dropdownColor: Colors.white,
-                            value: dropdownValue,
-                            hint: const Text("All"),
-                            underline: const SizedBox(),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              setState(() {
-                                selectedCategory = value;
-                              });
-                            },
-                            items: categories
-                                .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
-                                .toList(),
-                          ),
-                        ),
+                        Text("$totalItems", style: const TextStyle(fontSize: 12)),
+                        const Text("Items", style: TextStyle(fontSize: 10)),
                       ],
                     ),
-                  ),
-                ],
-              ),
-              body: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
-                    child: Material(
-                      elevation: 2,
-                      borderRadius: BorderRadius.circular(12),
-                      child: TextField(
-                        decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.search),
-                          hintText: "Search items, e.g. Cappuccino, Croissant...",
-                          suffixIcon: searchQuery.isEmpty
-                              ? null
-                              : IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    setState(() {
-                                      searchQuery = "";
-                                    });
-                                  },
-                                ),
-                          border: InputBorder.none,
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                        ),
-                        onChanged: (value) => setState(() => searchQuery = value),
+                    const SizedBox(width: 12),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text("₹${stockValue.toStringAsFixed(0)}",
+                            style: const TextStyle(fontSize: 12)),
+                        const Text("Stock value", style: TextStyle(fontSize: 10)),
+                      ],
+                    ),
+                    const SizedBox(width: 10),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child: DropdownButton<String>(
+                        dropdownColor: Colors.white,
+                        value: dropdownValue,
+                        hint: const Text("All"),
+                        underline: const SizedBox(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            selectedCategory = value;
+                          });
+                        },
+                        items: categories
+                            .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
+                            .toList(),
                       ),
                     ),
-                  ),
-                  SizedBox(
-                    height: 52,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      children: categories.map((cat) {
-                        final selected = cat == selectedCategory;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          child: ChoiceChip(
-                            label: Text(cat),
-                            selected: selected,
-                            onSelected: (_) => setState(() {
-                              selectedCategory = cat;
-                            }),
-                            backgroundColor: Colors.grey[200],
-                            selectedColor: Colors.brown[300],
-                            labelStyle:
-                                TextStyle(color: selected ? Colors.white : Colors.black87),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  Expanded(
-                    child: filteredItems.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.inventory_2_outlined, size: 64),
-                                SizedBox(height: 12),
-                                Text("No items found", style: TextStyle(fontSize: 16)),
-                              ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
+                child: Material(
+                  elevation: 2,
+                  borderRadius: BorderRadius.circular(12),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.search),
+                      hintText: "Search items, e.g. Cappuccino, Croissant...",
+                      suffixIcon: searchQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                setState(() {
+                                  searchQuery = "";
+                                });
+                              },
                             ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            itemCount: filteredItems.length,
-                            itemBuilder: (context, index) {
-                              final item = filteredItems[index];
-                              final qty = int.tryParse(item["quantity"] ?? "0") ?? 0;
-                              final lowStock = qty <= 3;
-                              final imageUrl = item["imageUrl"] ?? "";
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                child: Card(
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12)),
-                                  elevation: 3,
-                                  child: ListTile(
-                                    contentPadding: const EdgeInsets.all(10),
-                                    leading: Hero(
-                                      tag: "img_${item["id"]}",
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: imageUrl.isNotEmpty
-                                            ? Image.network(imageUrl,
-                                                width: 64,
-                                                height: 64,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (c, e, s) => Container(
-                                                    width: 64,
-                                                    height: 64,
-                                                    color: Colors.grey[200],
-                                                    child: const Icon(Icons.coffee)))
-                                            : Container(
-                                                width: 64,
-                                                height: 64,
-                                                color: Colors.grey[100],
-                                                child: const Icon(Icons.local_cafe,
-                                                    size: 36, color: Colors.brown)),
+                      border: InputBorder.none,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    ),
+                    onChanged: (value) => setState(() => searchQuery = value),
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: 52,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  children: categories.map((cat) {
+                    final selected = cat == selectedCategory;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: ChoiceChip(
+                        label: Text(cat),
+                        selected: selected,
+                        onSelected: (_) => setState(() {
+                          selectedCategory = cat;
+                        }),
+                        backgroundColor: Colors.grey[200],
+                        selectedColor: Colors.brown[300],
+                        labelStyle:
+                            TextStyle(color: selected ? Colors.white : Colors.black87),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              Expanded(
+                child: filteredItems.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.inventory_2_outlined, size: 64),
+                            SizedBox(height: 12),
+                            Text("No items found", style: TextStyle(fontSize: 16)),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: filteredItems.length,
+                        itemBuilder: (context, index) {
+                          final item = filteredItems[index];
+                          final qty = int.tryParse(item["quantity"] ?? "0") ?? 0;
+                          final lowStock = qty <= 3;
+                          final imageUrl = item["imageUrl"] ?? "";
+                          return Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            child: Card(
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              elevation: 3,
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.all(10),
+                                leading: Hero(
+                                  tag: "img_${item["id"]}",
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: imageUrl.isNotEmpty
+                                        ? Image.network(
+                                            imageUrl,
+                                            width: 60,
+                                            height: 60,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) =>
+                                                Container(
+                                              width: 60,
+                                              height: 60,
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey[300],
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: const Icon(Icons.image_not_supported,
+                                                  color: Colors.grey),
+                                            ),
+                                          )
+                                        : Container(
+                                            width: 60,
+                                            height: 60,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[300],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: const Icon(Icons.inventory_2_outlined,
+                                                color: Colors.grey),
+                                          ),
+                                  ),
+                                ),
+                                title: Text(
+                                  item["name"] ?? "Unknown Item",
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 4),
+                                    Text(
+                                        "${item["category"] ?? "-"} • Qty: ${item["quantity"] ?? "0"}"),
+                                    if ((item["description"] ?? "").isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 6.0),
+                                        child: Text(item["description"] ?? "",
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(fontSize: 12)),
                                       ),
-                                    ),
-                                    title: Text(item["name"] ?? "",
-                                        style:
-                                            const TextStyle(fontWeight: FontWeight.w600)),
-                                    subtitle: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                  ],
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment: CrossAxisAlignment.end,
                                       children: [
-                                        const SizedBox(height: 4),
-                                        Text(
-                                            "${item["category"] ?? "-"} • Qty: ${item["quantity"] ?? "0"}"),
-                                        if ((item["description"] ?? "").isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 6.0),
-                                            child: Text(item["description"] ?? "",
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(fontSize: 12)),
+                                        Text("₹${item["price"] ?? '0'}",
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 8),
+                                        if (lowStock)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                                color: Colors.red.shade100,
+                                                borderRadius: BorderRadius.circular(12)),
+                                            child: const Text("Low",
+                                                style: TextStyle(
+                                                    color: Colors.red, fontSize: 12)),
                                           ),
                                       ],
                                     ),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          crossAxisAlignment: CrossAxisAlignment.end,
-                                          children: [
-                                            Text("₹${item["price"] ?? '0'}",
-                                                style: const TextStyle(
-                                                    fontWeight: FontWeight.bold)),
-                                            const SizedBox(height: 8),
-                                            if (lowStock)
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                    horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                    color: Colors.red.shade100,
-                                                    borderRadius: BorderRadius.circular(12)),
-                                                child: const Text("Low",
-                                                    style: TextStyle(
-                                                        color: Colors.red, fontSize: 12)),
-                                              ),
-                                          ],
-                                        ),
-                                        const SizedBox(width: 8),
-                                        PopupMenuButton<String>(
-                                          onSelected: (value) async {
-                                            if (value == 'edit') {
-                                              await Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                      builder: (_) => AddItemScreen(
-                                                          categories: categories,
-                                                          existingItem: item)));
-                                            } else if (value == 'delete') {
-                                              final confirm = await showDialog<bool>(
-                                                context: context,
-                                                builder: (ctx) => AlertDialog(
-                                                  title: const Text("Delete item"),
-                                                  content: const Text(
-                                                      "Are you sure you want to delete this item?"),
-                                                  actions: [
-                                                    TextButton(
-                                                        onPressed: () =>
-                                                            Navigator.pop(ctx, false),
-                                                        child: const Text("Cancel")),
-                                                    TextButton(
-                                                        onPressed: () =>
-                                                            Navigator.pop(ctx, true),
-                                                        child: const Text("Delete",
-                                                            style: TextStyle(
-                                                                color: Colors.red))),
-                                                  ],
-                                                ),
-                                              );
-                                              if (confirm == true) {
-                                                await FirestoreService.instance
-                                                    .deleteItem(item['id']!);
-                                              }
-                                            }
-                                          },
-                                          itemBuilder: (ctx) => const [
-                                            PopupMenuItem(value: 'edit', child: Text('Edit')),
-                                            PopupMenuItem(value: 'delete', child: Text('Delete')),
-                                          ],
-                                        ),
+                                    const SizedBox(width: 8),
+                                    PopupMenuButton<String>(
+                                      onSelected: (value) async {
+                                        if (value == 'edit') {
+                                          await Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                  builder: (_) => AddItemScreen(
+                                                      categories: categories,
+                                                      existingItem: item)));
+                                        } else if (value == 'delete') {
+                                          final confirm = await showDialog<bool>(
+                                            context: context,
+                                            builder: (ctx) => AlertDialog(
+                                              title: const Text("Delete item"),
+                                              content: const Text(
+                                                  "Are you sure you want to delete this item?"),
+                                              actions: [
+                                                TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(ctx, false),
+                                                    child: const Text("Cancel")),
+                                                TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(ctx, true),
+                                                    child: const Text("Delete",
+                                                        style: TextStyle(
+                                                            color: Colors.red))),
+                                              ],
+                                            ),
+                                          );
+                                          if (confirm == true) {
+                                            await FirestoreService.instance
+                                                .deleteItem(item['id']!);
+                                          }
+                                        }
+                                      },
+                                      itemBuilder: (ctx) => const [
+                                        PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                        PopupMenuItem(value: 'delete', child: Text('Delete')),
                                       ],
                                     ),
-                                    onTap: () async {
-                                      await Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (context) => ItemDetailsScreen(
-                                                  item: item,
-                                                  heroTag: "img_${item["id"]}",
-                                                  categories: categories)));
-                                    },
-                                  ),
+                                  ],
                                 ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
+                                onTap: () async {
+                                  await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (context) => ItemDetailsScreen(
+                                              item: item,
+                                              heroTag: "img_${item["id"]}",
+                                              categories: categories)));
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ),
-              floatingActionButton: FloatingActionButton(
-                onPressed: () => _showAddMenu(context, categories),
-                backgroundColor: const Color(0xFF6F4E37),
-                child: const Icon(Icons.add),
-              ),
-            );
-          },
+            ],
+          ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () => _showAddMenu(context, categories),
+            backgroundColor: const Color(0xFF6F4E37),
+            child: const Icon(Icons.add),
+          ),
         );
       },
     );
