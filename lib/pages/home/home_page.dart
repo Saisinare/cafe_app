@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:my_app/pages/inventory/add_item_screen.dart';
+import 'package:my_app/pages/sales/sales_entry_screen.dart';
 import 'package:my_app/pages/settings/settings_page.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+ 
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -166,7 +168,14 @@ floatingActionButton: SpeedDial(
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const AddItemScreen(), // make sure it's imported
+              builder: (context) => const AddItemScreen(),
+            ),
+          );
+        } else if (option["label"] == "Sales") {   // 👈 open sales entry page
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SalesScreen(),
             ),
           );
         } else {
@@ -178,6 +187,7 @@ floatingActionButton: SpeedDial(
     );
   }).toList(),
 ),
+
 
 
     );
