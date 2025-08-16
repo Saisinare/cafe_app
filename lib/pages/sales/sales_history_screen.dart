@@ -1,0 +1,329 @@
+import 'package:flutter/material.dart';
+import '../../services/firestore_service.dart';
+import '../../models/sales.dart';
+
+class SalesHistoryScreen extends StatelessWidget {
+  const SalesHistoryScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Sales History"),
+        backgroundColor: const Color(0xFF6F4E37),
+        foregroundColor: Colors.white,
+      ),
+      body: StreamBuilder<List<SalesTransaction>>(
+        stream: FirestoreService.instance.streamSales(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('Error loading sales: ${snapshot.error}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Go Back'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final sales = snapshot.data ?? [];
+
+          if (sales.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.receipt_long, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text(
+                    'No sales yet',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Create your first sale to see it here',
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: sales.length,
+            itemBuilder: (context, index) {
+              final sale = sales[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                elevation: 2,
+                child: ExpansionTile(
+                  leading: CircleAvatar(
+                    backgroundColor: sale.paymentReceived 
+                        ? Colors.green 
+                        : Colors.orange,
+                    child: Icon(
+                      sale.paymentReceived ? Icons.check : Icons.pending,
+                      color: Colors.white,
+                    ),
+                  ),
+                  title: Text(
+                    sale.customerName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    "${sale.items.length} items • ${sale.parcelMode}",
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        "₹${sale.totalAmount.toStringAsFixed(2)}",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        sale.createdAt.toString().split(' ')[0],
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Items List
+                          const Text(
+                            "Items:",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          ...sale.items.map((item) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text("${item.itemName} (${item.category})"),
+                                ),
+                                Text("${item.quantity} × ₹${item.price}"),
+                                Text("₹${item.totalPrice.toStringAsFixed(2)}"),
+                              ],
+                            ),
+                          )),
+                          
+                          const Divider(),
+                          
+                          // Payment Details
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text("Payment Mode:"),
+                              Text(sale.paymentMode),
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text("Payment Status:"),
+                              Text(
+                                sale.paymentReceived ? "Paid" : "Pending",
+                                style: TextStyle(
+                                  color: sale.paymentReceived ? Colors.green : Colors.orange,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          
+                          if (!sale.paymentReceived && sale.billingTerm != null) ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text("Billing Term:"),
+                                Text(sale.billingTerm!),
+                              ],
+                            ),
+                            if (sale.billDueDate != null)
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text("Due Date:"),
+                                  Text(sale.billDueDate.toString().split(' ')[0]),
+                                ],
+                              ),
+                          ],
+                          
+                          const Divider(),
+                          
+                          // Financial Summary
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text("Subtotal:"),
+                              Text("₹${sale.subtotal.toStringAsFixed(2)}"),
+                            ],
+                          ),
+                          if (sale.discount > 0)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text("Discount:"),
+                                Text("-₹${(sale.subtotal * sale.discount / 100).toStringAsFixed(2)}"),
+                              ],
+                            ),
+                          if (sale.serviceCharge > 0)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text("Service Charge:"),
+                                Text("+₹${sale.serviceCharge.toStringAsFixed(2)}"),
+                              ],
+                            ),
+                          const Divider(),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                "Total Amount:",
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                "₹${sale.totalAmount.toStringAsFixed(2)}",
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text("Amount Received:"),
+                              Text("₹${sale.amountReceived.toStringAsFixed(2)}"),
+                            ],
+                          ),
+                          if (sale.totalAmount > sale.amountReceived)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  "Amount Due:",
+                                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  "₹${(sale.totalAmount - sale.amountReceived).toStringAsFixed(2)}",
+                                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          
+                          if (sale.note != null && sale.note!.isNotEmpty) ...[
+                            const Divider(),
+                            const Text(
+                              "Note:",
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(sale.note!),
+                          ],
+                          
+                          const SizedBox(height: 16),
+                          
+                          // Action Buttons
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  // TODO: Implement edit functionality
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Edit functionality coming soon!')),
+                                  );
+                                },
+                                icon: const Icon(Icons.edit),
+                                label: const Text('Edit'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text('Delete Sale'),
+                                      content: const Text(
+                                        'Are you sure you want to delete this sale? This will restore the stock quantities.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, true),
+                                          child: const Text(
+                                            'Delete',
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  
+                                  if (confirm == true) {
+                                    try {
+                                      await FirestoreService.instance.deleteSalesTransaction(sale.id!);
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Sale deleted successfully')),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Error deleting sale: $e')),
+                                        );
+                                      }
+                                    }
+                                  }
+                                },
+                                icon: const Icon(Icons.delete),
+                                label: const Text('Delete'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+} 

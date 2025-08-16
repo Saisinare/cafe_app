@@ -2,7 +2,9 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
+import '../models/sales.dart';
 
 class FirestoreService {
   FirestoreService._();
@@ -10,10 +12,15 @@ class FirestoreService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   final _uuid = const Uuid();
 
   CollectionReference get _items => _db.collection('items');
   CollectionReference get _categories => _db.collection('categories');
+  CollectionReference get _sales => _db.collection('sales');
+
+  // Get current user ID
+  String? get currentUserId => _auth.currentUser?.uid;
 
   // ---- Helpers: convert doc -> UI map (your UI uses Map<String,String>)
   Map<String, String> _docToUiMap(DocumentSnapshot doc) {
@@ -46,6 +53,25 @@ class FirestoreService {
   Stream<List<String>> streamCategories() {
     return _categories.orderBy('name').snapshots().map((snap) =>
         snap.docs.map((d) => (d.data() as Map<String, dynamic>)['name'].toString()).toList());
+  }
+
+  // ---------- Sales Streams ----------
+  Stream<List<SalesTransaction>> streamSales() {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+    
+    return _sales
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          final transactions = snap.docs
+              .map((d) => SalesTransaction.fromMap(d.id, d.data() as Map<String, dynamic>))
+              .toList();
+          
+          // Sort by createdAt descending (most recent first)
+          transactions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return transactions;
+        });
   }
 
   // ---------- CRUD ----------
@@ -95,6 +121,66 @@ class FirestoreService {
   Future<void> deleteItem(String id) async {
     // optional: delete subcollections like stock_moves if used
     await _items.doc(id).delete();
+  }
+
+  // ---------- Sales CRUD ----------
+  Future<String> createSalesTransaction(SalesTransaction transaction) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+
+    // Create the sales transaction
+    final doc = await _sales.add(transaction.toMap());
+    
+    // Update stock quantities for all items in the sale
+    for (final item in transaction.items) {
+      await adjustStock(
+        id: item.itemId,
+        delta: -item.quantity,
+        reason: 'sale_${doc.id}',
+      );
+    }
+    
+    return doc.id;
+  }
+
+  Future<List<SalesTransaction>> getSalesTransactions() async {
+    final userId = currentUserId;
+    if (userId == null) return [];
+    
+    final snapshot = await _sales
+        .where('userId', isEqualTo: userId)
+        .get();
+    
+    final transactions = snapshot.docs
+        .map((d) => SalesTransaction.fromMap(d.id, d.data() as Map<String, dynamic>))
+        .toList();
+    
+    // Sort by createdAt descending (most recent first)
+    transactions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return transactions;
+  }
+
+  Future<SalesTransaction?> getSalesTransaction(String id) async {
+    final doc = await _sales.doc(id).get();
+    if (!doc.exists) return null;
+    
+    return SalesTransaction.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+  }
+
+  Future<void> deleteSalesTransaction(String id) async {
+    final transaction = await getSalesTransaction(id);
+    if (transaction == null) return;
+    
+    // Restore stock quantities
+    for (final item in transaction.items) {
+      await adjustStock(
+        id: item.itemId,
+        delta: item.quantity,
+        reason: 'sale_cancellation_$id',
+      );
+    }
+    
+    await _sales.doc(id).delete();
   }
 
   // ---------- Stock adjustment (transactional) ----------

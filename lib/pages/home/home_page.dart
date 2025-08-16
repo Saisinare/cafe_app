@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:my_app/pages/inventory/add_item_screen.dart';
 import 'package:my_app/pages/sales/sales_entry_screen.dart';
+import 'package:my_app/pages/sales/sales_history_screen.dart';
 import 'package:my_app/pages/settings/settings_page.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
  
@@ -30,7 +31,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Options for the floating action menu
   final List<Map<String, dynamic>> _fabOptions = [
-    {"icon": Icons.shopping_cart, "label": "Sales"},
+    {"icon": Icons.shopping_cart, "label": "New Sale"},
+    {"icon": Icons.history, "label": "Sales History"},
     {"icon": Icons.shopping_bag, "label": "Purchase"},
     {"icon": Icons.arrow_downward, "label": "Money In"},
     {"icon": Icons.arrow_upward, "label": "Money Out"},
@@ -171,11 +173,18 @@ floatingActionButton: SpeedDial(
               builder: (context) => const AddItemScreen(),
             ),
           );
-        } else if (option["label"] == "Sales") {   // 👈 open sales entry page
+        } else if (option["label"] == "New Sale") {   // 👈 open sales entry page
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => const SalesScreen(),
+            ),
+          );
+        } else if (option["label"] == "Sales History") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SalesHistoryScreen(),
             ),
           );
         } else {
