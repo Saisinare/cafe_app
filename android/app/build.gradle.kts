@@ -40,14 +40,9 @@ flutter {
 }
 
 dependencies {
-    // Firebase BoM (Kotlin DSL uses parentheses)
-    implementation(platform("com.google.firebase:firebase-bom:32.1.0"))
-
-    implementation("com.google.firebase:firebase-storage-ktx")
-    
-    // Firebase Authentication
-    implementation("com.google.firebase:firebase-auth")
-
-    // Optional: Firebase Analytics
-    implementation("com.google.firebase:firebase-analytics")
+    // Firebase libraries with explicit versions
+    implementation("com.google.firebase:firebase-storage-ktx:21.0.0")
+    implementation("com.google.firebase:firebase-auth-ktx:22.3.1")
+    implementation("com.google.firebase:firebase-analytics-ktx:22.1.0")
 }
+
