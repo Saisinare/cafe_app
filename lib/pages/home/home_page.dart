@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:my_app/pages/inventory/add_item_screen.dart';
+import 'package:my_app/pages/party/add_party_screen.dart';
+import 'package:my_app/pages/party/party_page.dart';
 import 'package:my_app/pages/sales/sales_entry_screen.dart';
 import 'package:my_app/pages/sales/sales_history_screen.dart';
+import 'package:my_app/pages/finance/money_in_screen.dart';
+import 'package:my_app/pages/finance/money_out_screen.dart';
 import 'package:my_app/pages/settings/settings_page.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import 'package:my_app/pages/purchase/purchase_screen.dart';
  
 
 class HomeScreen extends StatefulWidget {
@@ -187,7 +192,35 @@ floatingActionButton: SpeedDial(
               builder: (context) => const SalesHistoryScreen(),
             ),
           );
-        } else {
+        } else if (option["label"] == "Purchase") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PurchaseScreen(),
+            ),
+          );
+        } else if (option["label"] == "Money In") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MoneyInScreen(),
+            ),
+          );
+        } else if (option["label"] == "Money Out") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MoneyOutScreen(),
+            ),
+          );
+        } else if (option["label"] == "Party") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AddPartyScreen(),
+            ),
+          );
+        }else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("${option["label"]} clicked")),
           );

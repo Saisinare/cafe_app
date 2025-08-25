@@ -5,6 +5,9 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 import '../models/sales.dart';
+import '../models/money_in.dart';
+import '../models/money_out.dart';
+import '../models/purchase.dart';
 
 class FirestoreService {
   FirestoreService._();
@@ -18,6 +21,9 @@ class FirestoreService {
   CollectionReference get _items => _db.collection('items');
   CollectionReference get _categories => _db.collection('categories');
   CollectionReference get _sales => _db.collection('sales');
+  CollectionReference get _moneyIn => _db.collection('money_in');
+  CollectionReference get _moneyOut => _db.collection('money_out');
+  CollectionReference get _purchases => _db.collection('purchases');
 
   // Get current user ID
   String? get currentUserId => _auth.currentUser?.uid;
@@ -71,6 +77,57 @@ class FirestoreService {
           // Sort by createdAt descending (most recent first)
           transactions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return transactions;
+        });
+  }
+
+  // ---------- Money In Streams ----------
+  Stream<List<MoneyInEntry>> streamMoneyIn() {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+
+    return _moneyIn
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          final entries = snap.docs
+              .map((d) => MoneyInEntry.fromMap(d.id, d.data() as Map<String, dynamic>))
+              .toList();
+          entries.sort((a, b) => b.moneyInDate.compareTo(a.moneyInDate));
+          return entries;
+        });
+  }
+
+  // ---------- Money Out Streams ----------
+  Stream<List<MoneyOutEntry>> streamMoneyOut() {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+
+    return _moneyOut
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          final entries = snap.docs
+              .map((d) => MoneyOutEntry.fromMap(d.id, d.data() as Map<String, dynamic>))
+              .toList();
+          entries.sort((a, b) => b.moneyOutDate.compareTo(a.moneyOutDate));
+          return entries;
+        });
+  }
+
+  // ---------- Purchases Streams ----------
+  Stream<List<PurchaseOrder>> streamPurchases() {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+
+    return _purchases
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          final orders = snap.docs
+              .map((d) => PurchaseOrder.fromMap(d.id, d.data() as Map<String, dynamic>))
+              .toList();
+          orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return orders;
         });
   }
 
@@ -181,6 +238,49 @@ class FirestoreService {
     }
     
     await _sales.doc(id).delete();
+  }
+
+  // ---------- Money In CRUD ----------
+  Future<String> createMoneyInEntry(MoneyInEntry entry) async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw Exception('User not authenticated');
+    }
+    final data = entry.toMap();
+    data['userId'] = userId; // enforce current user
+    final doc = await _moneyIn.add(data);
+    return doc.id;
+  }
+
+  // ---------- Money Out CRUD ----------
+  Future<String> createMoneyOutEntry(MoneyOutEntry entry) async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw Exception('User not authenticated');
+    }
+    final data = entry.toMap();
+    data['userId'] = userId; // enforce current user
+    final doc = await _moneyOut.add(data);
+    return doc.id;
+  }
+
+  // ---------- Purchases CRUD ----------
+  Future<String> createPurchaseOrder(PurchaseOrder order) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+
+    final doc = await _purchases.add(order.toMap());
+
+    // Increase stock for each purchased item
+    for (final item in order.items) {
+      await adjustStock(
+        id: item.itemId,
+        delta: item.quantity,
+        reason: 'purchase_${doc.id}',
+      );
+    }
+
+    return doc.id;
   }
 
   // ---------- Stock adjustment (transactional) ----------

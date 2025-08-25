@@ -28,6 +28,15 @@ class _AddPartyScreenState extends State<AddPartyScreen> {
   final List<String> partyTypes = ["Customer", "Supplier", "Partner"];
   final List<String> billingTypes = ["Prepaid", "Postpaid", "Credit"];
 
+  // DOB controller for a more standard read-only date field
+  final TextEditingController _dobController = TextEditingController();
+
+  @override
+  void dispose() {
+    _dobController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF6F4E37);
@@ -125,12 +134,38 @@ class _AddPartyScreenState extends State<AddPartyScreen> {
                 items: billingTypes,
                 onChanged: (v) => partyData["billingType"] = v ?? "",
               ),
-              _buildInputCard(
-                icon: Icons.cake,
-                label: "Date of Birth",
-                hint: "DD/MM/YYYY",
-                keyboard: TextInputType.datetime,
-                onSaved: (v) => partyData["dob"] = v!.trim(),
+
+              // Standard DOB field with date picker
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: TextFormField(
+                  controller: _dobController,
+                  readOnly: true,
+                  decoration: InputDecoration(
+                    labelText: "Date of Birth",
+                    hintText: "DD/MM/YYYY",
+                    prefixIcon: const Icon(Icons.cake, color: primaryColor),
+                    border: const OutlineInputBorder(),
+                  ),
+                  onTap: () async {
+                    final now = DateTime.now();
+                    final first = DateTime(now.year - 100);
+                    final last = now;
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: now,
+                      firstDate: first,
+                      lastDate: last,
+                    );
+                    if (picked != null) {
+                      final dd = picked.day.toString().padLeft(2, '0');
+                      final mm = picked.month.toString().padLeft(2, '0');
+                      final yyyy = picked.year.toString();
+                      _dobController.text = "$dd/$mm/$yyyy";
+                    }
+                  },
+                  onSaved: (_) => partyData["dob"] = _dobController.text.trim(),
+                ),
               ),
 
               const SizedBox(height: 24),
@@ -170,24 +205,19 @@ class _AddPartyScreenState extends State<AddPartyScreen> {
     String? Function(String?)? validator,
     required void Function(String?) onSaved,
   }) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 3,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: TextFormField(
-          keyboardType: keyboard,
-          maxLines: maxLines,
-          decoration: InputDecoration(
-            labelText: label,
-            hintText: hint,
-            prefixIcon: Icon(icon, color: const Color(0xFF6F4E37)),
-            border: InputBorder.none,
-          ),
-          validator: validator,
-          onSaved: onSaved,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        keyboardType: keyboard,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Icon(icon, color: const Color(0xFF6F4E37)),
+          border: const OutlineInputBorder(),
         ),
+        validator: validator,
+        onSaved: onSaved,
       ),
     );
   }
@@ -198,24 +228,18 @@ class _AddPartyScreenState extends State<AddPartyScreen> {
     required List<String> items,
     required void Function(String?) onChanged,
   }) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 3,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: DropdownButtonFormField<String>(
-          decoration: InputDecoration(
-            labelText: label,
-            prefixIcon: Icon(icon, color: const Color(0xFF6F4E37)),
-            border: InputBorder.none,
-          ),
-          items: items
-              .map((item) =>
-                  DropdownMenuItem(value: item, child: Text(item)))
-              .toList(),
-          onChanged: onChanged,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: DropdownButtonFormField<String>(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: const Color(0xFF6F4E37)),
+          border: const OutlineInputBorder(),
         ),
+        items: items
+            .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+            .toList(),
+        onChanged: onChanged,
       ),
     );
   }
