@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:my_app/pages/settings/settings_page.dart';
+import 'package:my_app/pages/premium/premium_subscription_screen.dart';
 import 'home/home_page.dart';
 import 'inventory/inventory_page.dart';
 import 'party/party_page.dart';
@@ -20,7 +21,7 @@ class _MainLayoutState extends State<MainLayout> {
     HomeScreen(),
     PartyScreen(),
     InventoryScreen(),
-    SettingsScreen()
+    PremiumSubscriptionScreen()
   ];
 
   void _onNavTap(int index) {

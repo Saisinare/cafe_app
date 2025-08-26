@@ -8,6 +8,8 @@ import '../models/sales.dart';
 import '../models/money_in.dart';
 import '../models/money_out.dart';
 import '../models/purchase.dart';
+import '../models/premium_subscription.dart';
+import '../models/sales_invoice.dart';
 
 class FirestoreService {
   FirestoreService._();
@@ -24,6 +26,8 @@ class FirestoreService {
   CollectionReference get _moneyIn => _db.collection('money_in');
   CollectionReference get _moneyOut => _db.collection('money_out');
   CollectionReference get _purchases => _db.collection('purchases');
+  CollectionReference get _premiumSubscriptions => _db.collection('premium_subscriptions');
+  CollectionReference get _salesInvoices => _db.collection('sales_invoices');
 
   // Get current user ID
   String? get currentUserId => _auth.currentUser?.uid;
@@ -40,6 +44,107 @@ class FirestoreService {
       'imageUrl': (d['imageUrl'] ?? '').toString(),
       'description': (d['description'] ?? '').toString(),
     };
+  }
+
+  // ---------- Premium Subscription Methods ----------
+  Future<String> createPremiumSubscription(PremiumSubscription subscription) async {
+    final doc = await _premiumSubscriptions.add(subscription.toMap());
+    return doc.id;
+  }
+
+  Future<void> updatePremiumSubscriptionStatus({
+    required String subscriptionId,
+    required String paymentStatus,
+    String? razorpayPaymentId,
+    bool? isActive,
+  }) async {
+    final data = <String, dynamic>{
+      'paymentStatus': paymentStatus,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    
+    if (razorpayPaymentId != null) {
+      data['razorpayPaymentId'] = razorpayPaymentId;
+    }
+    
+    if (isActive != null) {
+      data['isActive'] = isActive;
+    }
+    
+    await _premiumSubscriptions.doc(subscriptionId).update(data);
+  }
+
+  Stream<PremiumSubscription?> streamCurrentUserSubscription() {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value(null);
+    
+    return _premiumSubscriptions
+        .where('userId', isEqualTo: userId)
+        .where('isActive', isEqualTo: true)
+        .snapshots()
+        .map((snap) {
+          if (snap.docs.isEmpty) return null;
+          
+          final doc = snap.docs.first;
+          final subscription = PremiumSubscription.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+          
+          // Check if subscription is still valid
+          if (subscription.isExpired) {
+            // Mark as inactive if expired
+            updatePremiumSubscriptionStatus(
+              subscriptionId: doc.id,
+              paymentStatus: 'expired',
+              isActive: false,
+            );
+            return null;
+          }
+          
+          return subscription;
+        });
+  }
+
+  // ---------- Sales Invoice Methods ----------
+  Future<String> createSalesInvoice(SalesInvoice invoice) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+    
+    final doc = await _salesInvoices.add(invoice.toMap());
+    return doc.id;
+  }
+
+  Stream<List<SalesInvoice>> streamSalesInvoices() {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+    
+    return _salesInvoices
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          final invoices = snap.docs
+              .map((d) => SalesInvoice.fromMap(d.id, d.data() as Map<String, dynamic>))
+              .toList();
+          // Sort by createdAt descending without requiring a composite index
+          invoices.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return invoices;
+        });
+  }
+
+  Future<SalesInvoice?> getSalesInvoice(String id) async {
+    final doc = await _salesInvoices.doc(id).get();
+    if (!doc.exists) return null;
+    
+    return SalesInvoice.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+  }
+
+  Future<void> updateSalesInvoiceStatus(String id, String status) async {
+    await _salesInvoices.doc(id).update({
+      'status': status,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> deleteSalesInvoice(String id) async {
+    await _salesInvoices.doc(id).delete();
   }
 
   // ---------- Streams ----------
