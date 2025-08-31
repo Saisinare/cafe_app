@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/admin_service.dart';
 import './sign_up_page.dart';
 import './admin/admin_layout.dart';
+import './main_layout.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -50,11 +51,34 @@ class _LoginPageState extends State<LoginPage> {
         }
       } else {
         // Regular user login
+        print('Attempting regular user login for: $email');
         await _auth.signInWithEmailAndPassword(email: email, password: password);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login Successful!')),
-        );
-        // No need to navigate manually - AuthWrapper will handle it automatically
+        
+        // Check if login was successful and user is now authenticated
+        print('Firebase login completed. Current user: ${_auth.currentUser?.email}');
+        
+        if (_auth.currentUser != null) {
+          if (mounted) {
+            print('User authenticated, navigating to MainLayout');
+            
+            // Navigate to main layout immediately
+            try {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => const MainLayout()),
+              );
+            } catch (e) {
+              print('Navigation error: $e');
+              // Fallback: try to push and remove all previous routes
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const MainLayout()),
+                (route) => false,
+              );
+            }
+          }
+        } else {
+          print('Login failed - no current user found');
+          throw Exception('Login failed - user not authenticated');
+        }
       }
     } on FirebaseAuthException catch (e) {
       String message = '';

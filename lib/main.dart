@@ -56,10 +56,12 @@ class AuthWrapper extends StatelessWidget {
 
         // If user is authenticated, show main layout
         if (snapshot.hasData && snapshot.data != null) {
+          print('AuthWrapper: User authenticated, showing MainLayout for ${snapshot.data!.email}');
           return const MainLayout();
         }
 
         // If user is not authenticated, show login page
+        print('AuthWrapper: No user authenticated, showing LoginPage');
         return const LoginPage();
       },
     );
