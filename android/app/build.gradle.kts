@@ -34,25 +34,27 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
-            minifyEnabled = false
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
-            minifyEnabled = false
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
     
     // Enable multidex
     packagingOptions {
-        pickFirst 'META-INF/DEPENDENCIES'
-        pickFirst 'META-INF/LICENSE'
-        pickFirst 'META-INF/LICENSE.txt'
-        pickFirst 'META-INF/license.txt'
-        pickFirst 'META-INF/NOTICE'
-        pickFirst 'META-INF/NOTICE.txt'
-        pickFirst 'META-INF/notice.txt'
-        pickFirst 'META-INF/ASL2.0'
-        exclude 'META-INF/*.kotlin_module'
+        pickFirst("META-INF/DEPENDENCIES")
+        pickFirst("META-INF/LICENSE")
+        pickFirst("META-INF/LICENSE.txt")
+        pickFirst("META-INF/license.txt")
+        pickFirst("META-INF/NOTICE")
+        pickFirst("META-INF/NOTICE.txt")
+        pickFirst("META-INF/notice.txt")
+        pickFirst("META-INF/ASL2.0")
+        exclude("META-INF/*.kotlin_module")
     }
 }
 
@@ -71,5 +73,9 @@ dependencies {
     
     // Razorpay dependencies
     implementation("com.razorpay:checkout:1.6.33")
+    
+    // AppCompat theme support
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
 }
 

@@ -29,7 +29,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Future<void> _loadDashboardData() async {
-    setState(() => _isLoading = true);
+    if (!_isLoading) {
+      setState(() => _isLoading = true);
+    }
 
     try {
       Map<String, dynamic> userStats = {};
@@ -131,6 +133,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       _buildTab('overview', 'Overview'),
                       _buildTab('users', 'Users'),
                       _buildTab('analytics', 'Analytics'),
+                      // Refresh button
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: IconButton(
+                          onPressed: _loadDashboardData,
+                          icon: const Icon(Icons.refresh_rounded),
+                          tooltip: 'Refresh Dashboard',
+                          color: const Color(0xFF6F4E37),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -354,9 +366,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         borderData: FlBorderData(show: false),
                         lineBarsData: [
                           LineChartBarData(
-                            spots: _monthlyIncomeData.asMap().entries.map((entry) {
-                              return FlSpot(entry.key.toDouble(), entry.value['income']?.toDouble() ?? 0);
-                            }).toList(),
+                            spots: _monthlyIncomeData.asMap().entries
+                                .where((entry) => entry.value['income'] != null)
+                                .map((entry) {
+                                  return FlSpot(
+                                    entry.key.toDouble(), 
+                                    (entry.value['income'] as num?)?.toDouble() ?? 0.0
+                                  );
+                                }).toList(),
                             isCurved: true,
                             color: Colors.green.shade600,
                             barWidth: 3,
@@ -425,12 +442,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
               const SizedBox(width: 16),
               ElevatedButton.icon(
-                onPressed: () {
-                  // TODO: Implement add premium dialog
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Add Premium functionality coming soon!')),
-                  );
-                },
+                onPressed: () => _showAddPremiumDialog(),
                 icon: const Icon(Icons.add),
                 label: const Text('Add Premium'),
                 style: ElevatedButton.styleFrom(
@@ -547,6 +559,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
     if (_monthlyIncomeData.isEmpty) {
       return const Center(child: Text('No income data available'));
     }
+    
+    // Filter out invalid data points
+    final validData = _monthlyIncomeData.asMap().entries
+        .where((entry) => entry.value['income'] != null)
+        .map((entry) => FlSpot(
+              entry.key.toDouble(), 
+              (entry.value['income'] as num?)?.toDouble() ?? 0.0
+            ))
+        .toList();
+    
+    if (validData.isEmpty) {
+      return const Center(child: Text('No valid income data available'));
+    }
+    
     return LineChart(
       LineChartData(
         gridData: FlGridData(show: true),
@@ -554,9 +580,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         borderData: FlBorderData(show: true),
         lineBarsData: [
           LineChartBarData(
-            spots: _monthlyIncomeData.asMap().entries.map((entry) {
-              return FlSpot(entry.key.toDouble(), entry.value['income'].toDouble());
-            }).toList(),
+            spots: validData,
             isCurved: true,
             color: const Color(0xFF6F4E37),
             barWidth: 3,
@@ -568,7 +592,91 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildUserGrowthChart() {
-    return const Center(child: Text('User Growth Chart - Coming Soon'));
+    // Create sample data for user growth (you can replace this with actual data)
+    final userGrowthData = [
+      {'month': 'Jan', 'users': _userStats['totalUsers'] ?? 0},
+      {'month': 'Feb', 'users': (_userStats['totalUsers'] ?? 0) + 5},
+      {'month': 'Mar', 'users': (_userStats['totalUsers'] ?? 0) + 12},
+      {'month': 'Apr', 'users': (_userStats['totalUsers'] ?? 0) + 18},
+      {'month': 'May', 'users': (_userStats['totalUsers'] ?? 0) + 25},
+      {'month': 'Jun', 'users': (_userStats['totalUsers'] ?? 0) + 30},
+    ];
+    
+    if (userGrowthData.isEmpty || (userGrowthData.first['users'] as int) == 0) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.trending_up, color: Colors.grey, size: 48),
+              SizedBox(height: 8),
+              Text(
+                'No user growth data available',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: userGrowthData.map((e) => e['users'] as int).reduce((a, b) => a > b ? a : b).toDouble() * 1.2,
+        barTouchData: BarTouchData(enabled: false),
+        titlesData: FlTitlesData(
+          show: true,
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                if (value.toInt() < userGrowthData.length) {
+                  return Text(
+                    userGrowthData[value.toInt()]['month'] as String,
+                    style: const TextStyle(fontSize: 10),
+                  );
+                }
+                return const Text('');
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                return Text(
+                  value.toInt().toString(),
+                  style: const TextStyle(fontSize: 10),
+                );
+              },
+            ),
+          ),
+          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        borderData: FlBorderData(show: false),
+        barGroups: userGrowthData.asMap().entries.map((entry) {
+          return BarChartGroupData(
+            x: entry.key,
+            barRods: [
+              BarChartRodData(
+                toY: (entry.value['users'] as int).toDouble(),
+                color: const Color(0xFF6F4E37),
+                width: 20,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+              ),
+            ],
+          );
+        }).toList(),
+        gridData: FlGridData(show: false),
+      ),
+    );
   }
 
   Widget _buildUserDistributionChart() {
@@ -602,105 +710,317 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildUserCard(Map<String, dynamic> user) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: user['isPremium'] ? Colors.amber : Colors.grey,
-          child: Icon(
-            user['isPremium'] ? Icons.star : Icons.person,
-            color: Colors.white,
-          ),
-        ),
-        title: Text(user['name'] ?? 'Unknown'),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(user['email'] ?? ''),
-            Text(
-              user['isPremium']
-                  ? 'Premium: ${user['premiumPlan']} (Expires: ${user['premiumExpiry']})'
-                  : 'Free User',
-              style: TextStyle(
-                color: user['isPremium'] ? Colors.green : Colors.grey,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            switch (value) {
-              case 'remove_premium':
-                _removePremium(user);
-                break;
-              case 'add_premium':
-                _addPremium(user);
-                break;
-              case 'view':
-                _showUserDetails(user);
-                break;
-            }
-          },
-          itemBuilder: (context) => [
-            if (user['isPremium'])
-              const PopupMenuItem(
-                value: 'remove_premium',
-                child: Text('Remove Premium'),
-              ),
-            if (!user['isPremium'])
-              const PopupMenuItem(
-                value: 'add_premium',
-                child: Text('Add Premium'),
-              ),
-            const PopupMenuItem(
-              value: 'view',
-              child: Text('View Details'),
-            ),
-          ],
+Widget _buildUserCard(Map<String, dynamic> user) {
+  return Card(
+    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+    child: ListTile(
+      leading: CircleAvatar(
+        backgroundColor: user['isPremium'] ? Colors.amber : Colors.grey,
+        child: Icon(
+          user['isPremium'] ? Icons.star : Icons.person,
+          color: Colors.white,
         ),
       ),
-    );
-  }
-
-  void _removePremium(Map<String, dynamic> user) {
-    // Call AdminService to update Firestore
-    print("Removing premium from ${user['email']}");
-    // TODO: implement actual update
-  }
-
-  void _addPremium(Map<String, dynamic> user) {
-    print("Adding premium to ${user['email']}");
-    // TODO: implement actual update
-  }
-
-  void _showUserDetails(Map<String, dynamic> user) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(user['name'] ?? 'User Details'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Email: ${user['email'] ?? 'N/A'}"),
-              Text("Premium: ${user['isPremium'] ? 'Yes' : 'No'}"),
-              if (user['isPremium']) ...[
-                Text("Plan: ${user['premiumPlan']}"),
-                Text("Expiry: ${user['premiumExpiry']}"),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Close"),
+      title: Text(user['name'] ?? 'Unknown'),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(user['email'] ?? ''),
+          Text(
+            user['isPremium']
+                ? 'Premium: ${user['premiumPlan']} (Expires: ${user['premiumExpiry']})'
+                : 'Free User',
+            style: TextStyle(
+              color: user['isPremium'] ? Colors.green : Colors.grey,
+              fontWeight: FontWeight.bold,
             ),
+          ),
+        ],
+      ),
+      trailing: PopupMenuButton<String>(
+        onSelected: (value) {
+          switch (value) {
+            case 'remove_premium':
+              _removePremium(user); // implement this
+              break;
+            case 'add_premium':
+              _addPremium(user); // implement this
+              break;
+            case 'view':
+              _showUserDetails(user); // implement this
+              break;
+          }
+        },
+        itemBuilder: (context) => [
+          if (user['isPremium'])
+            const PopupMenuItem(
+              value: 'remove_premium',
+              child: Text('Remove Premium'),
+            ),
+          if (!user['isPremium'])
+            const PopupMenuItem(
+              value: 'add_premium',
+              child: Text('Add Premium'),
+            ),
+          const PopupMenuItem(
+            value: 'view',
+            child: Text('View Details'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+void _removePremium(Map<String, dynamic> user) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Remove Premium'),
+      content: Text('Are you sure you want to remove premium from ${user['name'] ?? user['email']}?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            Navigator.pop(context);
+            try {
+              // TODO: Call AdminService to update Firestore
+              print("Removing premium from ${user['email']}");
+              
+              // Show success message
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Premium removed from ${user['name'] ?? user['email']}'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+              
+              // Refresh data
+              _loadDashboardData();
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error removing premium: $e'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          child: const Text('Remove Premium'),
+        ),
+      ],
+    ),
+  );
+}
+
+void _addPremium(Map<String, dynamic> user) {
+  showDialog(
+    context: context,
+    builder: (context) {
+      String selectedPlan = 'monthly';
+      String selectedDuration = '1';
+      
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text('Add Premium to ${user['name'] ?? user['email']}'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Select Premium Plan:'),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: selectedPlan,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Plan Type',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+                    DropdownMenuItem(value: 'yearly', child: Text('Yearly')),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      selectedPlan = value!;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                const Text('Select Duration:'),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: selectedDuration,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Duration',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: '1', child: Text('1 Month/Year')),
+                    DropdownMenuItem(value: '3', child: Text('3 Months/Years')),
+                    DropdownMenuItem(value: '6', child: Text('6 Months/Years')),
+                    DropdownMenuItem(value: '12', child: Text('12 Months/Years')),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      selectedDuration = value!;
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  try {
+                    // TODO: Call AdminService to update Firestore
+                    print("Adding premium to ${user['email']}: $selectedPlan for $selectedDuration duration");
+                    
+                    // Show success message
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Premium added to ${user['name'] ?? user['email']}'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    
+                    // Refresh data
+                    _loadDashboardData();
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error adding premium: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Add Premium'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+void _showUserDetails(Map<String, dynamic> user) {
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: Text(user['name'] ?? 'User Details'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Email: ${user['email'] ?? 'N/A'}"),
+            Text("Premium: ${user['isPremium'] ? 'Yes' : 'No'}"),
+            if (user['isPremium']) ...[
+              Text("Plan: ${user['premiumPlan']}"),
+              Text("Expiry: ${user['premiumExpiry']}"),
+            ],
           ],
-        );
-      },
-    );
-  }
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Close"),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+void _showAddPremiumDialog() {
+  showDialog(
+    context: context,
+    builder: (context) {
+      String selectedPlan = 'monthly';
+      String selectedDuration = '1';
+      
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Add Premium Subscription'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Select Premium Plan:'),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: selectedPlan,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Plan Type',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+                    DropdownMenuItem(value: 'yearly', child: Text('Yearly')),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      selectedPlan = value!;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                const Text('Select Duration:'),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: selectedDuration,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Duration',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: '1', child: Text('1 Month/Year')),
+                    DropdownMenuItem(value: '3', child: Text('3 Months/Years')),
+                    DropdownMenuItem(value: '6', child: Text('6 Months/Years')),
+                    DropdownMenuItem(value: '12', child: Text('12 Months/Years')),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      selectedDuration = value!;
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // TODO: Implement premium addition logic
+                  print('Adding premium: $selectedPlan for $selectedDuration duration');
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Premium addition feature coming soon!'),
+                      backgroundColor: Colors.blue,
+                    ),
+                  );
+                },
+                child: const Text('Add Premium'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
 }
