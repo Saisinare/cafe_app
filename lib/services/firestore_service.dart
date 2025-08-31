@@ -149,21 +149,51 @@ class FirestoreService {
 
   // ---------- Streams ----------
   Stream<List<Map<String, String>>> streamItems() {
-    return _items.orderBy('name').snapshots().map(
-        (snap) => snap.docs.map((d) => _docToUiMap(d)).toList());
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+    
+    return _items
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          final items = snap.docs.map((d) => _docToUiMap(d)).toList();
+          // Sort in memory to avoid composite index requirement
+          items.sort((a, b) => a['name']!.compareTo(b['name']!));
+          return items;
+        });
   }
 
   Stream<List<Map<String, String>>> streamItemsByCategory(String category) {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+    
     return _items
+        .where('userId', isEqualTo: userId)
         .where('category', isEqualTo: category)
-        .orderBy('name')
         .snapshots()
-        .map((snap) => snap.docs.map((d) => _docToUiMap(d)).toList());
+        .map((snap) {
+          final items = snap.docs.map((d) => _docToUiMap(d)).toList();
+          // Sort in memory to avoid composite index requirement
+          items.sort((a, b) => a['name']!.compareTo(b['name']!));
+          return items;
+        });
   }
 
   Stream<List<String>> streamCategories() {
-    return _categories.orderBy('name').snapshots().map((snap) =>
-        snap.docs.map((d) => (d.data() as Map<String, dynamic>)['name'].toString()).toList());
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+    
+    return _categories
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          final categories = snap.docs
+              .map((d) => (d.data() as Map<String, dynamic>)['name'].toString())
+              .toList();
+          // Sort in memory to avoid requiring a composite index
+          categories.sort();
+          return categories;
+        });
   }
 
   // ---------- Sales Streams ----------
@@ -245,8 +275,12 @@ class FirestoreService {
     String? imageUrl,
     String? description,
   }) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+    
     final now = FieldValue.serverTimestamp();
     final doc = await _items.add({
+      'userId': userId, // Add user ID to ensure data isolation
       'name': name,
       'stockQty': stockQty,
       'price': price,
@@ -268,6 +302,18 @@ class FirestoreService {
     String? imageUrl,
     String? description,
   }) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+    
+    // First verify the item belongs to the current user
+    final doc = await _items.doc(id).get();
+    if (!doc.exists) throw Exception('Item not found');
+    
+    final itemData = doc.data() as Map<String, dynamic>;
+    if (itemData['userId'] != userId) {
+      throw Exception('You can only update your own items');
+    }
+    
     final data = <String, dynamic>{
       if (name != null) 'name': name,
       if (stockQty != null) 'stockQty': stockQty,
@@ -281,6 +327,18 @@ class FirestoreService {
   }
 
   Future<void> deleteItem(String id) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+    
+    // First verify the item belongs to the current user
+    final doc = await _items.doc(id).get();
+    if (!doc.exists) throw Exception('Item not found');
+    
+    final itemData = doc.data() as Map<String, dynamic>;
+    if (itemData['userId'] != userId) {
+      throw Exception('You can only delete your own items');
+    }
+    
     // optional: delete subcollections like stock_moves if used
     await _items.doc(id).delete();
   }
@@ -394,17 +452,29 @@ class FirestoreService {
     required int delta,
     required String reason,
   }) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+    
     final docRef = _items.doc(id);
     await _db.runTransaction((tx) async {
       final snap = await tx.get(docRef);
       if (!snap.exists) throw Exception('Item not found');
+      
       final data = snap.data() as Map<String, dynamic>;
+      
+      // Verify the item belongs to the current user
+      if (data['userId'] != userId) {
+        throw Exception('You can only adjust stock for your own items');
+      }
+      
       final current = (data['stockQty'] ?? 0) as num;
       final newQty = current.toInt() + delta;
       if (newQty < 0) throw Exception('Insufficient stock');
+      
       tx.update(docRef, {'stockQty': newQty, 'updatedAt': FieldValue.serverTimestamp()});
       final moveRef = docRef.collection('stock_moves').doc();
       tx.set(moveRef, {
+        'userId': userId, // Add user ID to stock moves
         'delta': delta,
         'reason': reason,
         'at': FieldValue.serverTimestamp(),
@@ -436,15 +506,214 @@ class FirestoreService {
 
   // ---------- Categories ----------
   Future<String> addCategory(String name) async {
-    final doc = await _categories.add({'name': name, 'createdAt': FieldValue.serverTimestamp()});
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+    
+    final doc = await _categories.add({
+      'userId': userId, // Add user ID to ensure data isolation
+      'name': name, 
+      'createdAt': FieldValue.serverTimestamp()
+    });
     return doc.id;
   }
 
   Future<void> updateCategory(String id, String name) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+    
+    // First verify the category belongs to the current user
+    final doc = await _categories.doc(id).get();
+    if (!doc.exists) throw Exception('Category not found');
+    
+    final categoryData = doc.data() as Map<String, dynamic>;
+    if (categoryData['userId'] != userId) {
+      throw Exception('You can only update your own categories');
+    }
+    
     await _categories.doc(id).update({'name': name});
   }
 
   Future<void> deleteCategory(String id) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+    
+    // First verify the category belongs to the current user
+    final doc = await _categories.doc(id).get();
+    if (!doc.exists) throw Exception('Category not found');
+    
+    final categoryData = doc.data() as Map<String, dynamic>;
+    if (categoryData['userId'] != userId) {
+      throw Exception('You can only delete your own categories');
+    }
+    
     await _categories.doc(id).delete();
+  }
+
+  // ---------- Analytics & Insights Methods ----------
+  
+  /// Get total sales amount for the current month
+  Stream<double> streamMonthlySales() {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value(0.0);
+    
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+    
+    return _sales
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          double total = 0.0;
+          for (final doc in snap.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+            
+            // Filter by date in memory to avoid composite index requirement
+            if (createdAt != null && 
+                createdAt.isAfter(startOfMonth.subtract(const Duration(days: 1))) &&
+                createdAt.isBefore(endOfMonth.add(const Duration(days: 1)))) {
+              total += (data['totalAmount'] ?? 0).toDouble();
+            }
+          }
+          return total;
+        });
+  }
+
+  /// Get top selling products based on quantity sold
+  Stream<List<Map<String, dynamic>>> streamTopSellingProducts({int limit = 5}) {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+    
+    return _sales
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          final Map<String, int> productSales = {};
+          
+                  for (final doc in snap.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final items = data['items'] as List<dynamic>? ?? [];
+          
+          for (final item in items) {
+            final itemName = item['itemName'] ?? '';
+            final quantity = (item['quantity'] ?? 0) as int;
+            productSales[itemName] = (productSales[itemName] ?? 0) + quantity;
+          }
+        }
+          
+          // Sort by quantity sold and take top products
+          final sortedProducts = productSales.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+          
+          return sortedProducts.take(limit).map((entry) => {
+            'name': entry.key,
+            'quantity': entry.value,
+            'label': '${entry.value} units sold'
+          }).toList();
+        });
+  }
+
+  /// Get stock alerts for items with low stock
+  Stream<List<Map<String, dynamic>>> streamStockAlerts({int threshold = 10}) {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+    
+    return _items
+        .where('userId', isEqualTo: userId)
+        .where('stockQty', isLessThanOrEqualTo: threshold)
+        .snapshots()
+        .map((snap) {
+          return snap.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return {
+              'id': doc.id,
+              'name': data['name'] ?? '',
+              'stockQty': data['stockQty'] ?? 0,
+              'label': '${data['stockQty']} units remaining'
+            };
+          }).toList();
+        });
+  }
+
+  /// Get weekly sales data for the chart
+  Stream<List<Map<String, dynamic>>> streamWeeklySalesData() {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+    
+    return _sales
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          final Map<int, double> dailySales = {};
+          
+          // Initialize all days of the week with 0
+          for (int i = 0; i < 7; i++) {
+            dailySales[i] = 0.0;
+          }
+          
+          final now = DateTime.now();
+          final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+          
+          for (final doc in snap.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+            
+            if (createdAt != null) {
+              final daysDiff = createdAt.difference(startOfWeek).inDays;
+              if (daysDiff >= 0 && daysDiff < 7) {
+                dailySales[daysDiff] = (dailySales[daysDiff] ?? 0.0) + 
+                    (data['totalAmount'] ?? 0).toDouble();
+              }
+            }
+          }
+          
+          return dailySales.entries.map((entry) => {
+            'day': entry.key,
+            'amount': entry.value,
+            'label': _getDayLabel(entry.key)
+          }).toList();
+        });
+  }
+
+  /// Get total inventory value
+  Stream<double> streamTotalInventoryValue() {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value(0.0);
+    
+    return _items
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          double totalValue = 0.0;
+          for (final doc in snap.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final stockQty = (data['stockQty'] ?? 0);
+            final price = (data['price'] ?? 0).toDouble();
+            totalValue += stockQty * price;
+          }
+          return totalValue;
+        });
+  }
+
+  /// Get recent financial summary
+  Stream<Map<String, dynamic>> streamFinancialSummary() {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value({});
+    
+    return _moneyIn.where('userId', isEqualTo: userId).snapshots().map((snap) {
+      double totalMoneyIn = 0.0;
+      for (final doc in snap.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        totalMoneyIn += (data['amount'] ?? 0).toDouble();
+      }
+      return {'totalMoneyIn': totalMoneyIn};
+    });
+  }
+
+  /// Helper method to get day labels
+  String _getDayLabel(int dayIndex) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days[dayIndex];
   }
 }

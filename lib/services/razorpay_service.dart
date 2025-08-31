@@ -5,7 +5,7 @@ import 'firestore_service.dart';
 
 class RazorpayService {
   // Use test keys for development - replace with live keys for production
-  static const String _keyId = 'rzp_test_Q63VRotx1UvmSL'; // Changed to test key
+  static const String _keyId = 'rzp_live_Q63VRotx1UvmSL'; // Changed to test key
   static const String _merchantId = 'OwDqnKbBwpc01n';
   
   // Set to false to enable real payments

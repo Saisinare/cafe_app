@@ -28,11 +28,27 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   PremiumSubscription? _currentSubscription;
   bool _isLoadingPremium = true;
+  
+  // Live data streams
+  late Stream<double> _monthlySalesStream;
+  late Stream<List<Map<String, dynamic>>> _topSellingProductsStream;
+  late Stream<List<Map<String, dynamic>>> _stockAlertsStream;
+  late Stream<List<Map<String, dynamic>>> _weeklySalesDataStream;
+  late Stream<double> _inventoryValueStream;
 
   @override
   void initState() {
     super.initState();
     _checkPremiumStatus();
+    _initializeDataStreams();
+  }
+
+  void _initializeDataStreams() {
+    _monthlySalesStream = FirestoreService.instance.streamMonthlySales();
+    _topSellingProductsStream = FirestoreService.instance.streamTopSellingProducts(limit: 3);
+    _stockAlertsStream = FirestoreService.instance.streamStockAlerts(threshold: 10);
+    _weeklySalesDataStream = FirestoreService.instance.streamWeeklySalesData();
+    _inventoryValueStream = FirestoreService.instance.streamTotalInventoryValue();
   }
 
   void _checkPremiumStatus() {
@@ -261,6 +277,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.black),
+            onPressed: () {
+              setState(() {
+                _initializeDataStreams();
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Refreshing data...'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: IconButton(
@@ -282,13 +312,59 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Row(
               children: [
-                Expanded(child: _dashboardCard(title: 'Total Sales', value: '₹12,500')),
+                Expanded(
+                  child: StreamBuilder<double>(
+                    stream: _monthlySalesStream,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        return _dashboardCard(
+                          title: 'Monthly Sales',
+                          value: '₹${snapshot.data!.toStringAsFixed(0)}',
+                        );
+                      }
+                      return _dashboardCard(
+                        title: 'Monthly Sales',
+                        value: '₹0',
+                      );
+                    },
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: _dashboardCard(title: 'Top Selling Product', value: 'Espresso')),
+                Expanded(
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: _topSellingProductsStream,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                        return _dashboardCard(
+                          title: 'Top Product',
+                          value: snapshot.data!.first['name'] ?? 'None',
+                        );
+                      }
+                      return _dashboardCard(
+                        title: 'Top Product',
+                        value: 'None',
+                      );
+                    },
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
-            _dashboardCard(title: 'Stock Alerts', value: '3 Items'),
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _stockAlertsStream,
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  return _dashboardCard(
+                    title: 'Stock Alerts',
+                    value: '${snapshot.data!.length} Items',
+                  );
+                }
+                return _dashboardCard(
+                  title: 'Stock Alerts',
+                  value: '0 Items',
+                );
+              },
+            ),
             
             // Premium Features Preview
             if (_currentSubscription?.isValid != true && !_isLoadingPremium) ...[
@@ -355,67 +431,139 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 10),
             const Text('Sales Trend', style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 6),
-            const Text('₹ 12,500', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            StreamBuilder<double>(
+              stream: _monthlySalesStream,
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  return Text(
+                    '₹ ${snapshot.data!.toStringAsFixed(0)}',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)
+                  );
+                }
+                return const Text(
+                  '₹ 0',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)
+                );
+              },
+            ),
             const SizedBox(height: 12),
 
             SizedBox(
               height: 120,
-              child: LineChart(
-                LineChartData(
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: const [
-                        FlSpot(0, 5),
-                        FlSpot(1, 6),
-                        FlSpot(2, 5.8),
-                        FlSpot(3, 6.2),
-                        FlSpot(4, 5.2),
-                        FlSpot(5, 7),
-                        FlSpot(6, 6.8),
-                      ],
-                      isCurved: true,
-                      color: Colors.blue,
-                      dotData: FlDotData(show: false),
-                      belowBarData: BarAreaData(show: false),
-                    ),
-                  ],
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(days[value.toInt()], style: const TextStyle(fontSize: 12)),
-                          );
-                        },
-                        interval: 1,
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: _weeklySalesDataStream,
+                builder: (context, snapshot) {
+                  if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                    final data = snapshot.data!;
+                    return LineChart(
+                      LineChartData(
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: data.asMap().entries.map((entry) {
+                              return FlSpot(
+                                entry.key.toDouble(),
+                                entry.value['amount']?.toDouble() ?? 0.0,
+                              );
+                            }).toList(),
+                            isCurved: true,
+                            color: Colors.blue,
+                            dotData: FlDotData(show: false),
+                            belowBarData: BarAreaData(show: false),
+                          ),
+                        ],
+                        titlesData: FlTitlesData(
+                          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              getTitlesWidget: (value, meta) {
+                                if (value.toInt() < data.length) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Text(
+                                      data[value.toInt()]['label'] ?? '',
+                                      style: const TextStyle(fontSize: 12)
+                                    ),
+                                  );
+                                }
+                                return const Text('');
+                              },
+                              interval: 1,
+                            ),
+                          ),
+                          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        ),
+                        gridData: FlGridData(show: false),
+                        borderData: FlBorderData(show: false),
                       ),
+                    );
+                  }
+                  return Container(
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  gridData: FlGridData(show: false),
-                  borderData: FlBorderData(show: false),
-                ),
+                    child: const Center(
+                      child: Text('No sales data available'),
+                    ),
+                  );
+                },
               ),
             ),
 
             const SizedBox(height: 24),
             const Text('Top Selling Products', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            _productItem(Icons.local_cafe, 'Espresso', '120 units sold'),
-            _productItem(Icons.local_cafe, 'Latte', '100 units sold'),
-            _productItem(Icons.local_cafe, 'Cappuccino', '80 units sold'),
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _topSellingProductsStream,
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                  return Column(
+                    children: snapshot.data!.map((product) {
+                      return _productItem(
+                        Icons.local_cafe,
+                        product['name'] ?? '',
+                        product['label'] ?? '',
+                      );
+                    }).toList(),
+                  );
+                }
+                return const Text('No sales data available', style: TextStyle(color: Colors.grey));
+              },
+            ),
 
             const SizedBox(height: 24),
             const Text('Stock Alerts', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            _productItem(Icons.bubble_chart, 'Coffee Beans', '5 units remaining'),
-            _productItem(Icons.local_drink, 'Milk', '2 units remaining'),
-            _productItem(Icons.cake, 'Sugar', '10 units remaining'),
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _stockAlertsStream,
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                  return Column(
+                    children: snapshot.data!.map((item) {
+                      IconData icon;
+                      if (item['name'].toString().toLowerCase().contains('coffee') || 
+                          item['name'].toString().toLowerCase().contains('bean')) {
+                        icon = Icons.bubble_chart;
+                      } else if (item['name'].toString().toLowerCase().contains('milk')) {
+                        icon = Icons.local_drink;
+                      } else {
+                        icon = Icons.inventory;
+                      }
+                      
+                      return _productItem(
+                        icon,
+                        item['name'] ?? '',
+                        item['label'] ?? '',
+                      );
+                    }).toList(),
+                  );
+                }
+                return const Text('No stock alerts', style: TextStyle(color: Colors.grey));
+              },
+            ),
           ],
         ),
       ),
