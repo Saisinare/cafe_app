@@ -190,152 +190,165 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ],
                         ),
                       )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
+                    : GridView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.75,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
                         itemCount: filteredItems.length,
                         itemBuilder: (context, index) {
                           final item = filteredItems[index];
                           final qty = int.tryParse(item["quantity"] ?? "0") ?? 0;
                           final lowStock = qty <= 3;
                           final imageUrl = item["imageUrl"] ?? "";
-                          return Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            child: Card(
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              elevation: 3,
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.all(10),
-                                leading: Hero(
-                                  tag: "img_${item["id"]}",
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: imageUrl.isNotEmpty
-                                        ? Image.network(
-                                            imageUrl,
-                                            width: 60,
-                                            height: 60,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) =>
-                                                Container(
-                                              width: 60,
-                                              height: 60,
-                                              decoration: BoxDecoration(
-                                                color: Colors.grey[300],
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: const Icon(Icons.image_not_supported,
-                                                  color: Colors.grey),
-                                            ),
-                                          )
-                                        : Container(
-                                            width: 60,
-                                            height: 60,
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey[300],
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: const Icon(Icons.inventory_2_outlined,
-                                                color: Colors.grey),
-                                          ),
+                          
+                          return Card(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 3,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ItemDetailsScreen(
+                                      item: item,
+                                      heroTag: "img_${item["id"]}",
+                                    ),
                                   ),
-                                ),
-                                title: Text(
-                                  item["name"] ?? "Unknown Item",
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 4),
-                                    Text(
-                                        "${item["category"] ?? "-"} • Qty: ${item["quantity"] ?? "0"}"),
-                                    if ((item["description"] ?? "").isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 6.0),
-                                        child: Text(item["description"] ?? "",
+                                );
+                              },
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // 🔹 Image box
+                                  Hero(
+                                    tag: "img_${item["id"]}",
+                                    child: ClipRRect(
+                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                      child: imageUrl.isNotEmpty
+                                          ? Image.network(
+                                              imageUrl,
+                                              width: double.infinity,
+                                              height: 120,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => Container(
+                                                height: 120,
+                                                color: Colors.grey[300],
+                                                child: const Icon(Icons.image_not_supported,
+                                                    color: Colors.grey, size: 40),
+                                              ),
+                                            )
+                                          : Container(
+                                              height: 120,
+                                              color: Colors.grey[300],
+                                              child: const Icon(Icons.inventory_2_outlined,
+                                                  color: Colors.grey, size: 40),
+                                            ),
+                                    ),
+                                  ),
+
+                                  // 🔹 Details section
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12.0),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item["name"] ?? "Unknown Item",
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.bold, fontSize: 14),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(fontSize: 12)),
-                                      ),
-                                  ],
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        Text("₹${item["price"] ?? '0'}",
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.bold)),
-                                        const SizedBox(height: 8),
-                                        if (lowStock)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(
-                                                color: Colors.red.shade100,
-                                                borderRadius: BorderRadius.circular(12)),
-                                            child: const Text("Low",
-                                                style: TextStyle(
-                                                    color: Colors.red, fontSize: 12)),
                                           ),
-                                      ],
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            "${item["category"] ?? "-"} • Qty: ${item["quantity"] ?? "0"}",
+                                            style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const Spacer(),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                child: Text("₹${item["price"] ?? '0'}",
+                                                    style: const TextStyle(
+                                                        fontWeight: FontWeight.bold, fontSize: 14)),
+                                              ),
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  if (lowStock)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                          horizontal: 6, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.red.shade100,
+                                                        borderRadius: BorderRadius.circular(8),
+                                                      ),
+                                                      child: const Text("Low",
+                                                          style: TextStyle(
+                                                              color: Colors.red, fontSize: 10)),
+                                                    ),
+                                                  const SizedBox(width: 4),
+                                                  PopupMenuButton<String>(
+                                                    padding: EdgeInsets.zero,
+                                                    iconSize: 18,
+                                                    onSelected: (value) async {
+                                                      if (value == 'edit') {
+                                                        await Navigator.push(
+                                                            context,
+                                                            MaterialPageRoute(
+                                                                builder: (_) =>
+                                                                    AddItemScreen(existingItem: item)));
+                                                      } else if (value == 'delete') {
+                                                        final confirm = await showDialog<bool>(
+                                                          context: context,
+                                                          builder: (ctx) => AlertDialog(
+                                                            title: const Text("Delete item"),
+                                                            content: const Text(
+                                                                "Are you sure you want to delete this item?"),
+                                                            actions: [
+                                                              TextButton(
+                                                                  onPressed: () =>
+                                                                      Navigator.pop(ctx, false),
+                                                                  child: const Text("Cancel")),
+                                                              TextButton(
+                                                                  onPressed: () =>
+                                                                      Navigator.pop(ctx, true),
+                                                                  child: const Text("Delete",
+                                                                      style: TextStyle(color: Colors.red))),
+                                                            ],
+                                                          ),
+                                                        );
+                                                        if (confirm == true) {
+                                                          await FirestoreService.instance
+                                                              .deleteItem(item['id']!);
+                                                        }
+                                                      }
+                                                    },
+                                                    itemBuilder: (ctx) => const [
+                                                      PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                                      PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    PopupMenuButton<String>(
-                                      onSelected: (value) async {
-                                        if (value == 'edit') {
-                                          await Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                  builder: (_) => AddItemScreen(
-                                                      existingItem: item)));
-                                        } else if (value == 'delete') {
-                                          final confirm = await showDialog<bool>(
-                                            context: context,
-                                            builder: (ctx) => AlertDialog(
-                                              title: const Text("Delete item"),
-                                              content: const Text(
-                                                  "Are you sure you want to delete this item?"),
-                                              actions: [
-                                                TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(ctx, false),
-                                                    child: const Text("Cancel")),
-                                                TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(ctx, true),
-                                                    child: const Text("Delete",
-                                                        style: TextStyle(
-                                                            color: Colors.red))),
-                                              ],
-                                            ),
-                                          );
-                                          if (confirm == true) {
-                                            await FirestoreService.instance
-                                                .deleteItem(item['id']!);
-                                          }
-                                        }
-                                      },
-                                      itemBuilder: (ctx) => const [
-                                        PopupMenuItem(value: 'edit', child: Text('Edit')),
-                                        PopupMenuItem(value: 'delete', child: Text('Delete')),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                onTap: () async {
-                                  await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (context) => ItemDetailsScreen(
-                                              item: item,
-                                              heroTag: "img_${item["id"]}")));
-                                },
+                                  ),
+                                ],
                               ),
                             ),
                           );

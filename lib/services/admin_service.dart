@@ -22,8 +22,8 @@ class AdminService {
   }
 
   // Admin credentials
-  static const String _adminEmail = 'admin';
-  static const String _adminPassword = 'admin';
+  static const String _adminEmail = 'admin123@gmail.com';
+  static const String _adminPassword = 'admin1991';
 
   // Check if user is admin
   bool isAdminUser(String email) {
