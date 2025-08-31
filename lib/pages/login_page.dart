@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/admin_service.dart';
 import './sign_up_page.dart';
+import './admin/admin_layout.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -13,19 +15,47 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final AdminService _adminService = AdminService();
 
   Future<void> _login() async {
     String email = emailController.text.trim();
     String password = passwordController.text.trim();
 
-    try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
+    if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login Successful!')),
+        const SnackBar(content: Text('Please fill in all fields')),
       );
-      // No need to navigate manually - AuthWrapper will handle it automatically
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Check if it's admin login
+      if (_adminService.isAdminUser(email)) {
+        // Admin login
+        final admin = await _adminService.loginAsAdmin(email, password);
+        if (admin != null) {
+          // Navigate to admin layout
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const AdminLayout()),
+            );
+          }
+        } else {
+          throw Exception('Invalid admin credentials');
+        }
+      } else {
+        // Regular user login
+        await _auth.signInWithEmailAndPassword(email: email, password: password);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Login Successful!')),
+        );
+        // No need to navigate manually - AuthWrapper will handle it automatically
+      }
     } on FirebaseAuthException catch (e) {
       String message = '';
       if (e.code == 'user-not-found') {
@@ -38,6 +68,14 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Login failed: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -100,7 +138,7 @@ class _LoginPageState extends State<LoginPage> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _login,
+                    onPressed: _isLoading ? null : _login,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blueAccent,
                       foregroundColor: Colors.white,
@@ -108,9 +146,18 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                     ),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 14.0),
-                      child: Text('Login', style: TextStyle(fontSize: 18)),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14.0),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text('Login', style: TextStyle(fontSize: 18)),
                     ),
                   ),
                 ),
