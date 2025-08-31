@@ -4,11 +4,12 @@ import '../models/premium_subscription.dart';
 import 'firestore_service.dart';
 
 class RazorpayService {
-  static const String _keyId = 'rzp_live_Q63VRotx1UvmSL';
+  // Use test keys for development - replace with live keys for production
+  static const String _keyId = 'rzp_test_Q63VRotx1UvmSL'; // Changed to test key
   static const String _merchantId = 'OwDqnKbBwpc01n';
   
-  // Set to true for development/testing without actual payments
-  static const bool _isDevelopmentMode = true;
+  // Set to false to enable real payments
+  static const bool _isDevelopmentMode = false;
   
   Razorpay? _razorpay;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -23,39 +24,28 @@ class RazorpayService {
   
   // Track initialization status
   bool _isInitialized = false;
-  bool _hasRazorpayPackage = true;
 
   void initialize() {
-    if (_isDevelopmentMode) {
-      print('RazorpayService: Running in development mode');
-      _isInitialized = true;
-      return;
-    }
-    
     try {
       _razorpay = Razorpay();
       _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
       _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
       _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
       _isInitialized = true;
-      _hasRazorpayPackage = true;
       print('RazorpayService: Initialized successfully');
     } catch (e) {
       print('RazorpayService: Failed to initialize: $e');
       _isInitialized = false;
-      _hasRazorpayPackage = false;
       
-      // If Razorpay package is not available, fall back to development mode
-      if (e.toString().contains('package') || e.toString().contains('import')) {
-        print('RazorpayService: Package not available, falling back to development mode');
+      // If in development mode, we can still simulate payments
+      if (_isDevelopmentMode) {
+        print('RazorpayService: Running in development mode - payments will be simulated');
         _isInitialized = true;
       }
     }
   }
 
   void dispose() {
-    if (_isDevelopmentMode || !_isInitialized) return;
-    
     try {
       _razorpay?.clear();
     } catch (e) {
@@ -97,9 +87,9 @@ class RazorpayService {
       // Store the subscription ID for this user to track payment
       _pendingSubscriptions[user.uid] = subscriptionId;
 
-      if (_isDevelopmentMode || !_hasRazorpayPackage) {
-        // Simulate successful payment for development or when Razorpay is not available
-        print('Development mode or Razorpay not available: Simulating successful payment');
+      if (_isDevelopmentMode) {
+        // Simulate successful payment for development
+        print('Development mode: Simulating successful payment');
         await Future.delayed(const Duration(seconds: 2));
         await _simulatePaymentSuccess(subscriptionId);
         return;
@@ -118,8 +108,8 @@ class RazorpayService {
         'name': 'Cafe App Premium',
         'description': '$planType Premium Subscription',
         'prefill': {
-          'email': user.email,
-          'contact': user.phoneNumber,
+          'email': user.email ?? '',
+          'contact': user.phoneNumber ?? '',
         },
         'external': {
           'wallets': ['paytm', 'phonepe', 'gpay']
@@ -147,8 +137,7 @@ class RazorpayService {
       
       // Notify UI of payment success
       if (onPaymentSuccess != null) {
-        final mode = _hasRazorpayPackage ? 'Development Mode' : 'Demo Mode';
-        onPaymentSuccess!('Payment successful! Premium features activated. ($mode)');
+        onPaymentSuccess!('Payment successful! Premium features activated.');
       }
     } catch (e) {
       print('Error simulating payment success: $e');

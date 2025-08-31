@@ -1,12 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'pages/main_layout.dart';
 import 'pages/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  
+  // Initialize Razorpay
+  try {
+    Razorpay razorpay = Razorpay();
+    print('Razorpay initialized successfully');
+  } catch (e) {
+    print('Razorpay initialization failed: $e');
+  }
+  
   runApp(const MyApp());
 }
 
