@@ -82,26 +82,6 @@ class _AdminLayoutState extends State<AdminLayout> {
         backgroundColor: const Color(0xFF6F4E37),
         foregroundColor: Colors.white,
         elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: () {
-              // Refresh current page data - will be implemented later
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Refresh functionality coming soon!'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
-          ),
-          IconButton(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: 'Logout',
-          ),
-        ],
       ),
       body: Container(
         margin: const EdgeInsets.all(16),
