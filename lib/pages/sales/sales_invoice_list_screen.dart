@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/firestore_service.dart';
 import '../../models/sales_invoice.dart';
 import 'sales_invoice_screen.dart';
+import 'sales_invoice_print_preview.dart';
+import 'sales_invoice_details_screen.dart';
+import 'sales_invoice_edit_screen.dart';
 
 class SalesInvoiceListScreen extends StatelessWidget {
   const SalesInvoiceListScreen({super.key});
@@ -86,6 +90,10 @@ class SalesInvoiceListScreen extends StatelessWidget {
               final invoice = invoices[index];
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(16),
                   leading: CircleAvatar(
@@ -103,9 +111,12 @@ class SalesInvoiceListScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 4),
-                      Text(invoice.customerName),
                       Text(
-                        'Due: ${invoice.dueDate.toString().split(' ')[0]}',
+                        invoice.customerName,
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      Text(
+                        'Due: ${_formatDate(invoice.dueDate)}',
                         style: TextStyle(
                           color: invoice.dueDate.isBefore(DateTime.now()) && invoice.status != 'paid'
                               ? Colors.red
@@ -139,13 +150,7 @@ class SalesInvoiceListScreen extends StatelessWidget {
                     ],
                   ),
                   onTap: () {
-                    // Navigate to invoice details or edit screen
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => SalesInvoiceScreen(),
-                      ),
-                    );
+                    _showInvoiceOptions(context, invoice);
                   },
                 ),
               );
@@ -154,6 +159,185 @@ class SalesInvoiceListScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  void _showInvoiceOptions(BuildContext context, SalesInvoice invoice) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.visibility, color: Color(0xFF6F4E37)),
+              title: const Text('View Details'),
+              onTap: () {
+                Navigator.pop(context);
+                _viewInvoiceDetails(context, invoice);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.print, color: Color(0xFF6F4E37)),
+              title: const Text('Print Preview'),
+              onTap: () {
+                Navigator.pop(context);
+                _showPrintPreview(context, invoice);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit, color: Color(0xFF6F4E37)),
+              title: const Text('Edit Invoice'),
+              onTap: () {
+                Navigator.pop(context);
+                _editInvoice(context, invoice);
+              },
+            ),
+            if (invoice.status == 'draft') ...[
+              ListTile(
+                leading: const Icon(Icons.send, color: Colors.blue),
+                title: const Text('Mark as Sent'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _updateInvoiceStatus(context, invoice, 'sent');
+                },
+              ),
+            ],
+            if (invoice.status == 'sent') ...[
+              ListTile(
+                leading: const Icon(Icons.check_circle, color: Colors.green),
+                title: const Text('Mark as Paid'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _updateInvoiceStatus(context, invoice, 'paid');
+                },
+              ),
+            ],
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _viewInvoiceDetails(BuildContext context, SalesInvoice invoice) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final userDoc = await FirestoreService.instance.getUserData(user.uid);
+        final businessInfo = {
+          'cafeName': userDoc?['cafeName'] ?? 'Business Name',
+          'address': userDoc?['address'] ?? 'Business Address',
+          'phone': userDoc?['phone'] ?? 'Phone Number',
+        };
+
+        if (context.mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SalesInvoiceDetailsScreen(
+                invoice: invoice,
+                businessInfo: businessInfo,
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load business info: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showPrintPreview(BuildContext context, SalesInvoice invoice) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final userDoc = await FirestoreService.instance.getUserData(user.uid);
+        final businessInfo = {
+          'cafeName': userDoc?['cafeName'] ?? 'Business Name',
+          'address': userDoc?['address'] ?? 'Business Address',
+          'phone': userDoc?['phone'] ?? 'Phone Number',
+        };
+
+        if (context.mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SalesInvoicePrintPreview(
+                invoice: invoice,
+                businessInfo: businessInfo,
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load business info: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _editInvoice(BuildContext context, SalesInvoice invoice) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SalesInvoiceEditScreen(
+          invoice: invoice,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateInvoiceStatus(BuildContext context, SalesInvoice invoice, String newStatus) async {
+    try {
+      await FirestoreService.instance.updateInvoiceStatus(invoice.id!, newStatus);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invoice status updated to ${newStatus.toUpperCase()}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update invoice status: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
   }
 
   Color _getStatusColor(String status) {

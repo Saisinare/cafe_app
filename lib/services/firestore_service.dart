@@ -143,6 +143,32 @@ class FirestoreService {
     });
   }
 
+  // Update entire sales invoice
+  Future<void> updateSalesInvoice(SalesInvoice invoice) async {
+    if (invoice.id == null) throw Exception('Invoice ID is required for update');
+    
+    await _salesInvoices.doc(invoice.id).update(invoice.toMap());
+  }
+
+  // Alias for consistency with UI calls
+  Future<void> updateInvoiceStatus(String id, String status) async {
+    await updateSalesInvoiceStatus(id, status);
+  }
+
+  // Get user data for business information
+  Future<Map<String, dynamic>?> getUserData(String userId) async {
+    try {
+      final doc = await _db.collection('users').doc(userId).get();
+      if (doc.exists) {
+        return doc.data() as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error getting user data: $e');
+      return null;
+    }
+  }
+
   Future<void> deleteSalesInvoice(String id) async {
     await _salesInvoices.doc(id).delete();
   }

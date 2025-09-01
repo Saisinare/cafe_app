@@ -92,14 +92,126 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _signOut() async {
     try {
-      await _auth.signOut();
-      // The AuthWrapper will automatically redirect to login page
-    } catch (e) {
+      debugPrint('Starting signout process...');
+      
+      // Check if user is actually signed in
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        debugPrint('No user is currently signed in');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No user is currently signed in'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+
+      debugPrint('User ${currentUser.email} is signed in, proceeding with signout...');
+
+      // Show loading indicator
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sign out failed: $e')),
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 16),
+                Text('Signing out...'),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+          ),
         );
       }
+
+      // Clear any cached data or preferences
+      debugPrint('Clearing local data...');
+      await _clearLocalData();
+
+      // Sign out from Firebase
+      debugPrint('Signing out from Firebase...');
+      await _auth.signOut();
+      debugPrint('Firebase signout successful');
+      
+      // Show success message (though user will be redirected)
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Signed out successfully'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      debugPrint('Signout process completed successfully');
+      // The AuthWrapper will automatically redirect to login page
+      // due to FirebaseAuth.instance.authStateChanges() stream
+      
+    } catch (e) {
+      debugPrint('Signout failed with error: $e');
+      if (mounted) {
+        String errorMessage = 'Sign out failed';
+        
+        // Handle specific error types
+        if (e.toString().contains('network')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else if (e.toString().contains('timeout')) {
+          errorMessage = 'Request timed out. Please try again.';
+        } else if (e.toString().contains('permission')) {
+          errorMessage = 'Permission denied. Please try again.';
+        } else {
+          errorMessage = 'Sign out failed: ${e.toString()}';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _signOut(),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _clearLocalData() async {
+    try {
+      debugPrint('Starting to clear local data...');
+      
+      // Clear local state
+      setState(() {
+        _userData = null;
+        _isLoading = true;
+      });
+      debugPrint('Local state cleared');
+
+      // Clear any shared preferences or local storage if needed
+      // This is where you would clear any cached data, preferences, etc.
+      
+      // Clear any active streams or listeners
+      // This ensures no memory leaks when user signs out
+      
+      debugPrint('Local data cleared successfully');
+    } catch (e) {
+      debugPrint('Failed to clear local data: $e');
+      // Don't throw error here as it's not critical for signout
     }
   }
 
@@ -239,8 +351,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Navigator.of(context).pop();
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6F4E37),
-                foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFF6F4E37),
+        foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -546,7 +658,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ValueChanged<bool> onChanged,
   ) {
     return Container(
-      padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.grey.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
@@ -567,9 +679,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 Text(
                   title,
                   style: const TextStyle(
@@ -613,7 +725,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(
+                    shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
               title: Row(
@@ -640,10 +752,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
               content: SingleChildScrollView(
-                child: Column(
+                      child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                        children: [
                     const Text(
                       'Manage your privacy and security settings:',
                       style: TextStyle(fontSize: 16, color: Colors.grey),
@@ -659,8 +771,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           twoFactorAuth = value;
                         });
                       },
-                    ),
-                    const SizedBox(height: 16),
+                          ),
+                          const SizedBox(height: 16),
                     _buildPrivacyOption(
                       'Enable Fingerprint/Face ID',
                       'Use biometric authentication for quick access.',
@@ -810,19 +922,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                          Text(
                   title,
-                  style: const TextStyle(
+                            style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 16,
                     color: Colors.black87,
-                  ),
-                ),
+                            ),
+                          ),
                 const SizedBox(height: 4),
-                Text(
+                          Text(
                   subtitle,
-                  style: TextStyle(
-                    color: Colors.grey[600],
+                            style: TextStyle(
+                              color: Colors.grey[600],
                     fontSize: 14,
                   ),
                 ),
@@ -1057,7 +1169,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+                          Text(
                 title,
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
@@ -1066,7 +1178,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               Text(
                 subtitle,
-                style: TextStyle(
+                            style: TextStyle(
                   color: Colors.grey[600],
                   fontSize: 14,
                 ),
@@ -1184,7 +1296,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title,
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
-                  fontSize: 16,
+                              fontSize: 16,
                 ),
               ),
               Text(
@@ -1192,11 +1304,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(
                   color: Colors.grey[600],
                   fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
         Text(
           currentValue,
           style: TextStyle(
@@ -1441,10 +1553,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
+                  const Text(
                 'Change Password',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
                   fontSize: 20,
                 ),
               ),
@@ -1685,11 +1797,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         // Account Settings Section
                         _buildSectionHeader('Account Settings', Icons.person),
                         const SizedBox(height: 16),
-                        _buildSettingTile(
-                          icon: Icons.person_outline,
-                          title: 'Edit Profile',
-                          subtitle: 'Update your personal information',
-                          onTap: () {
+                  _buildSettingTile(
+                    icon: Icons.person_outline,
+                    title: 'Edit Profile',
+                    subtitle: 'Update your personal information',
+                    onTap: () {
                             _showEditProfileDialog();
                           },
                         ),
@@ -1707,11 +1819,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         // Preferences Section
                         _buildSectionHeader('Preferences', Icons.tune),
                         const SizedBox(height: 16),
-                        _buildSettingTile(
-                          icon: Icons.notifications_outlined,
-                          title: 'Notifications',
-                          subtitle: 'Manage notification preferences',
-                          onTap: () {
+                  _buildSettingTile(
+                    icon: Icons.notifications_outlined,
+                    title: 'Notifications',
+                    subtitle: 'Manage notification preferences',
+                    onTap: () {
                             _showNotificationSettings();
                           },
                         ),
@@ -1729,11 +1841,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         // Security Section
                         _buildSectionHeader('Security & Privacy', Icons.security),
                         const SizedBox(height: 16),
-                        _buildSettingTile(
-                          icon: Icons.security_outlined,
-                          title: 'Privacy & Security',
-                          subtitle: 'Manage your privacy settings',
-                          onTap: () {
+                  _buildSettingTile(
+                    icon: Icons.security_outlined,
+                    title: 'Privacy & Security',
+                    subtitle: 'Manage your privacy settings',
+                    onTap: () {
                             _showPrivacySecuritySettings();
                           },
                         ),
@@ -1757,34 +1869,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         // Support Section
                         _buildSectionHeader('Support & Information', Icons.help),
                         const SizedBox(height: 16),
-                        _buildSettingTile(
-                          icon: Icons.help_outline,
-                          title: 'Help & Support',
-                          subtitle: 'Get help and contact support',
-                          onTap: () {
+                  _buildSettingTile(
+                    icon: Icons.help_outline,
+                    title: 'Help & Support',
+                    subtitle: 'Get help and contact support',
+                    onTap: () {
                             _showHelpSupport();
-                          },
-                        ),
-                        _buildSettingTile(
-                          icon: Icons.info_outline,
-                          title: 'About',
-                          subtitle: 'App version and information',
-                          onTap: () {
-                            showAboutDialog(
-                              context: context,
-                              applicationName: 'Cafe App',
-                              applicationVersion: '1.0.0',
-                              applicationIcon: const Icon(Icons.local_cafe),
-                              children: [
-                                const Text('A comprehensive cafe management application.'),
-                              ],
-                            );
-                          },
-                        ),
+                    },
+                  ),
+                  _buildSettingTile(
+                    icon: Icons.info_outline,
+                    title: 'About',
+                    subtitle: 'App version and information',
+                    onTap: () {
+                      showAboutDialog(
+                        context: context,
+                        applicationName: 'Cafe App',
+                        applicationVersion: '1.0.0',
+                        applicationIcon: const Icon(Icons.local_cafe),
+                        children: [
+                          const Text('A comprehensive cafe management application.'),
+                        ],
+                      );
+                    },
+                  ),
 
                         const SizedBox(height: 40),
 
-                        // Logout Button
+                  // Logout Button
                         _buildLogoutButton(),
                         
                         const SizedBox(height: 20),
@@ -1800,7 +1912,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildUserProfileCard() {
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(
+                        shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
       child: Padding(
@@ -1821,9 +1933,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _userData?['ownerName'] ?? 'User',
               style: const TextStyle(
                 fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
             const SizedBox(height: 8),
             Text(
               _userData?['cafeName'] ?? 'Cafe',
@@ -1838,11 +1950,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey[500],
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1902,11 +2014,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: const Color(0xFF6F4E37).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+        borderRadius: BorderRadius.circular(12),
+      ),
                   child: Icon(
-                    icon,
-                    color: const Color(0xFF6F4E37),
+          icon,
+          color: const Color(0xFF6F4E37),
                     size: 24,
                   ),
                 ),
@@ -1916,21 +2028,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
                           color: Colors.black87,
-                        ),
-                      ),
+          ),
+        ),
                       const SizedBox(height: 4),
                       Text(
-                        subtitle,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
-                        ),
-                      ),
+          subtitle,
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 14,
+          ),
+        ),
                     ],
                   ),
                 ),
@@ -1941,8 +2053,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
+          Icons.arrow_forward_ios,
+          size: 16,
                     color: Colors.grey[600],
                   ),
                 ),
