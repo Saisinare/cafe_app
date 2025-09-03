@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/firestore_service.dart';
 import '../../models/sales.dart';
+import '../../services/receipt_printer_service.dart';
 
 class SalesHistoryScreen extends StatelessWidget {
   const SalesHistoryScreen({super.key});
@@ -87,7 +88,7 @@ class SalesHistoryScreen extends StatelessWidget {
                     "${sale.items.length} items • ${sale.parcelMode}",
                   ),
                   trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
@@ -97,9 +98,79 @@ class SalesHistoryScreen extends StatelessWidget {
                           fontSize: 16,
                         ),
                       ),
-                      Text(
-                        sale.createdAt.toString().split(' ')[0],
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      const SizedBox(height: 4),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () async {
+                          final devices = await ReceiptPrinterService.instance.scanDevices();
+                          if (devices.isEmpty) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('No paired Bluetooth printers found')),
+                              );
+                            }
+                            return;
+                          }
+
+                          final device = devices.first;
+                          final connected = await ReceiptPrinterService.instance.connect(device);
+                          if (!connected) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Failed to connect to ${device.name ?? 'printer'}')),
+                              );
+                            }
+                            return;
+                          }
+
+                          // Fetch business info from current user profile to avoid hardcoding
+                          String? userId = FirestoreService.instance.currentUserId;
+                          Map<String, dynamic>? userData;
+                          if (userId != null) {
+                            userData = await FirestoreService.instance.getUserData(userId);
+                          }
+
+                          final businessName = (userData?['businessName'] ?? userData?['name'] ?? '');
+                          String? addressLine1;
+                          String? addressLine2;
+                          if (userData != null) {
+                            final addr = (userData['address'] ?? '').toString();
+                            if (addr.isNotEmpty) {
+                              final parts = addr.split(',');
+                              addressLine1 = parts.isNotEmpty ? parts.first.trim() : null;
+                              addressLine2 = parts.length > 1 ? parts.sublist(1).join(',').trim() : null;
+                            } else {
+                              addressLine1 = (userData['addressLine1'] ?? '').toString().trim();
+                              addressLine2 = (userData['addressLine2'] ?? '').toString().trim();
+                              if (addressLine1.isEmpty) addressLine1 = null;
+                              if (addressLine2.isEmpty) addressLine2 = null;
+                            }
+                          }
+                          final contact = (userData?['phone'] ?? userData?['contact'] ?? userData?['mobile'] ?? '').toString();
+                          final gstRateVal = (() {
+                            final v = userData?['gstRate'];
+                            if (v == null) return 0.0;
+                            if (v is num) return v.toDouble();
+                            final parsed = double.tryParse(v.toString());
+                            return parsed ?? 0.0;
+                          })();
+
+                          final ok = await ReceiptPrinterService.instance.printSaleReceipt(
+                            sale,
+                            businessName: businessName.isEmpty ? 'Receipt' : businessName,
+                            addressLine1: addressLine1,
+                            addressLine2: addressLine2,
+                            contact: contact.isEmpty ? null : contact,
+                            invoiceNumber: sale.id,
+                            gstRate: gstRateVal > 1 ? gstRateVal / 100.0 : gstRateVal,
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(ok ? 'Receipt sent to printer' : 'Failed to print receipt')),
+                            );
+                          }
+                        },
+                        child: const Icon(Icons.print, color: Colors.blueGrey, size: 20),
                       ),
                     ],
                   ),

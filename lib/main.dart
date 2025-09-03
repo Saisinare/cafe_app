@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io' show Platform;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
@@ -7,7 +9,20 @@ import 'pages/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  // Ensure correct Firebase project/bucket on desktop & web by passing options
+  const options = FirebaseOptions(
+    apiKey: 'AIzaSyDWSt4AE_WTdmBc79kY0rSVGJzT1L2-E84',
+    appId: '1:107350228532:android:61f9a7de28142f459a9461',
+    messagingSenderId: '107350228532',
+    projectId: 'cafe-app-project-13361',
+    storageBucket: 'cafe-app-project-13361.firebasestorage.app',
+  );
+
+  if (kIsWeb || Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    await Firebase.initializeApp(options: options);
+  } else {
+    await Firebase.initializeApp();
+  }
   
   // Initialize Razorpay
   try {

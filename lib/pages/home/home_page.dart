@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:my_app/pages/inventory/add_item_screen.dart';
 import 'package:my_app/pages/party/add_party_screen.dart';
-import 'package:my_app/pages/party/party_page.dart';
 import 'package:my_app/pages/sales/sales_entry_screen.dart';
 import 'package:my_app/pages/sales/sales_history_screen.dart';
-import 'package:my_app/pages/sales/sales_invoice_screen.dart';
-import 'package:my_app/pages/sales/sales_invoice_list_screen.dart';
+// Removed invoice screens from FAB options to avoid duplication
 import 'package:my_app/pages/finance/money_in_screen.dart';
 import 'package:my_app/pages/finance/money_out_screen.dart';
+import 'package:my_app/pages/finance/receipts_center_screen.dart';
+import 'package:my_app/pages/finance/expense_screen.dart';
 import 'package:my_app/pages/settings/settings_page.dart';
 import 'package:my_app/pages/premium/premium_subscription_screen.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
@@ -25,7 +25,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
   PremiumSubscription? _currentSubscription;
   bool _isLoadingPremium = true;
   
@@ -34,7 +33,6 @@ class _HomeScreenState extends State<HomeScreen> {
   late Stream<List<Map<String, dynamic>>> _topSellingProductsStream;
   late Stream<List<Map<String, dynamic>>> _stockAlertsStream;
   late Stream<List<Map<String, dynamic>>> _weeklySalesDataStream;
-  late Stream<double> _inventoryValueStream;
 
   @override
   void initState() {
@@ -48,7 +46,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _topSellingProductsStream = FirestoreService.instance.streamTopSellingProducts(limit: 3);
     _stockAlertsStream = FirestoreService.instance.streamStockAlerts(threshold: 10);
     _weeklySalesDataStream = FirestoreService.instance.streamWeeklySalesData();
-    _inventoryValueStream = FirestoreService.instance.streamTotalInventoryValue();
   }
 
   void _checkPremiumStatus() {
@@ -79,23 +76,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onNavTap(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+  // Removed unused bottom nav tap handler
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Tapped: ${_navLabels[index]}")),
-    );
-  }
-
-  static const List<String> _navLabels = ['Home', 'Products', 'Invoices', 'Subscription'];
+  // removed unused nav labels
 
   // Options for the floating action menu
   List<Map<String, dynamic>> get _fabOptions {
     final baseOptions = [
       {"icon": Icons.shopping_cart, "label": "New Sale"},
       {"icon": Icons.history, "label": "Sales History"},
+      {"icon": Icons.receipt_long, "label": "Receipts"},
       {"icon": Icons.shopping_bag, "label": "Purchase"},
       {"icon": Icons.arrow_downward, "label": "Money In"},
       {"icon": Icons.arrow_upward, "label": "Money Out"},
@@ -104,11 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
       {"icon": Icons.inventory, "label": "Item"},
     ];
 
-    // Add Sales Invoice options for premium users
-    if (_currentSubscription?.isValid == true) {
-      baseOptions.insert(2, {"icon": Icons.receipt, "label": "Sales Invoice"});
-      baseOptions.insert(3, {"icon": Icons.list_alt, "label": "Invoice List"});
-    }
+    // Removed Sales Invoice options to prevent duplication with Sales History receipts
 
     return baseOptions;
   }
@@ -133,26 +119,13 @@ class _HomeScreenState extends State<HomeScreen> {
           MaterialPageRoute(builder: (context) => const SalesHistoryScreen()),
         );
         break;
-      case "Sales Invoice":
-        if (_currentSubscription?.isValid == true) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const SalesInvoiceScreen()),
-          );
-        } else {
-          _showPremiumUpgradeDialog();
-        }
+      case "Receipts":
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ReceiptsCenterScreen()),
+        );
         break;
-      case "Invoice List":
-        if (_currentSubscription?.isValid == true) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const SalesInvoiceListScreen()),
-          );
-        } else {
-          _showPremiumUpgradeDialog();
-        }
-        break;
+      // Removed Sales Invoice and Invoice List cases
       case "Purchase":
         Navigator.push(
           context,
@@ -171,6 +144,12 @@ class _HomeScreenState extends State<HomeScreen> {
           MaterialPageRoute(builder: (context) => const MoneyOutScreen()),
         );
         break;
+      case "Expense":
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ExpenseScreen()),
+        );
+        break;
       case "Party":
         Navigator.push(
           context,
@@ -184,37 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _showPremiumUpgradeDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Premium Feature'),
-        content: const Text(
-          'This is a premium feature. Upgrade to premium to create professional GST-compliant invoices with your business branding.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PremiumSubscriptionScreen()),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6F4E37),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Upgrade to Premium'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Removed unused premium upgrade dialog (invoice feature removed)
 
   @override
   Widget build(BuildContext context) {

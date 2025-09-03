@@ -367,7 +367,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                           controller: _priceCtrl,
                           decoration: const InputDecoration(
                             labelText: 'Price (₹)',
-                            prefixIcon: Icon(Icons.attach_money),
+                            prefixIcon: Icon(Icons.currency_rupee_sharp),
                             border: OutlineInputBorder(),
                           ),
                           keyboardType: TextInputType.numberWithOptions(decimal: true),

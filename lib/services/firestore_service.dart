@@ -9,7 +9,7 @@ import '../models/money_in.dart';
 import '../models/money_out.dart';
 import '../models/purchase.dart';
 import '../models/premium_subscription.dart';
-import '../models/sales_invoice.dart';
+import '../models/expense.dart';
 
 class FirestoreService {
   FirestoreService._();
@@ -27,7 +27,8 @@ class FirestoreService {
   CollectionReference get _moneyOut => _db.collection('money_out');
   CollectionReference get _purchases => _db.collection('purchases');
   CollectionReference get _premiumSubscriptions => _db.collection('premium_subscriptions');
-  CollectionReference get _salesInvoices => _db.collection('sales_invoices');
+  // Removed: sales invoices collection
+  CollectionReference get _expenses => _db.collection('expenses');
 
   // Get current user ID
   String? get currentUserId => _auth.currentUser?.uid;
@@ -103,58 +104,6 @@ class FirestoreService {
         });
   }
 
-  // ---------- Sales Invoice Methods ----------
-  Future<String> createSalesInvoice(SalesInvoice invoice) async {
-    final userId = currentUserId;
-    if (userId == null) throw Exception('User not authenticated');
-    
-    final doc = await _salesInvoices.add(invoice.toMap());
-    return doc.id;
-  }
-
-  Stream<List<SalesInvoice>> streamSalesInvoices() {
-    final userId = currentUserId;
-    if (userId == null) return Stream.value([]);
-    
-    return _salesInvoices
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snap) {
-          final invoices = snap.docs
-              .map((d) => SalesInvoice.fromMap(d.id, d.data() as Map<String, dynamic>))
-              .toList();
-          // Sort by createdAt descending without requiring a composite index
-          invoices.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return invoices;
-        });
-  }
-
-  Future<SalesInvoice?> getSalesInvoice(String id) async {
-    final doc = await _salesInvoices.doc(id).get();
-    if (!doc.exists) return null;
-    
-    return SalesInvoice.fromMap(doc.id, doc.data() as Map<String, dynamic>);
-  }
-
-  Future<void> updateSalesInvoiceStatus(String id, String status) async {
-    await _salesInvoices.doc(id).update({
-      'status': status,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-  }
-
-  // Update entire sales invoice
-  Future<void> updateSalesInvoice(SalesInvoice invoice) async {
-    if (invoice.id == null) throw Exception('Invoice ID is required for update');
-    
-    await _salesInvoices.doc(invoice.id).update(invoice.toMap());
-  }
-
-  // Alias for consistency with UI calls
-  Future<void> updateInvoiceStatus(String id, String status) async {
-    await updateSalesInvoiceStatus(id, status);
-  }
-
   // Get user data for business information
   Future<Map<String, dynamic>?> getUserData(String userId) async {
     try {
@@ -169,9 +118,7 @@ class FirestoreService {
     }
   }
 
-  Future<void> deleteSalesInvoice(String id) async {
-    await _salesInvoices.doc(id).delete();
-  }
+  // Removed deleteSalesInvoice as invoices feature is deprecated
 
   // ---------- Streams ----------
   Stream<List<Map<String, String>>> streamItems() {
@@ -289,6 +236,23 @@ class FirestoreService {
               .toList();
           orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return orders;
+        });
+  }
+
+  // ---------- Expenses Stream ----------
+  Stream<List<ExpenseEntry>> streamExpenses() {
+    final userId = currentUserId;
+    if (userId == null) return Stream.value([]);
+
+    return _expenses
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          final entries = snap.docs
+              .map((d) => ExpenseEntry.fromMap(d.id, d.data() as Map<String, dynamic>))
+              .toList();
+          entries.sort((a, b) => b.expenseDate.compareTo(a.expenseDate));
+          return entries;
         });
   }
 
@@ -472,6 +436,18 @@ class FirestoreService {
     return doc.id;
   }
 
+  // ---------- Expenses CRUD ----------
+  Future<String> createExpenseEntry(ExpenseEntry entry) async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw Exception('User not authenticated');
+    }
+    final data = entry.toMap();
+    data['userId'] = userId; // enforce current user
+    final doc = await _expenses.add(data);
+    return doc.id;
+  }
+
   // ---------- Stock adjustment (transactional) ----------
   Future<void> adjustStock({
     required String id,
@@ -511,13 +487,30 @@ class FirestoreService {
   // ---------- Storage: upload and delete images ----------
   /// Upload a File (mobile) to `item_images/` and return the download URL.
   Future<String> uploadItemImage(File file, {String? fileName}) async {
-    final ext = file.path.split('.').last;
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+
+    final ext = file.path.split('.').last.toLowerCase();
     final name = fileName ?? '${_uuid.v4()}.$ext';
-    final ref = _storage.ref().child('item_images').child(name);
-    final uploadTask = ref.putFile(file);
-    final snapshot = await uploadTask.whenComplete(() {});
-    final downloadUrl = await snapshot.ref.getDownloadURL();
-    return downloadUrl;
+
+    // Best-effort content type
+    String? contentType;
+    if (ext == 'jpg' || ext == 'jpeg') contentType = 'image/jpeg';
+    if (ext == 'png') contentType = 'image/png';
+    if (ext == 'gif') contentType = 'image/gif';
+    final metadata = contentType != null ? SettableMetadata(contentType: contentType) : null;
+
+    // Try user-scoped path first
+    final primaryRef = _storage.ref().child('users').child(userId).child('item_images').child(name);
+    try {
+      await primaryRef.putFile(file, metadata);
+      return await primaryRef.getDownloadURL();
+    } on FirebaseException catch (_) {
+      // Fallback to legacy/global path if rules block user-scoped path
+      final fallbackRef = _storage.ref().child('item_images').child(name);
+      await fallbackRef.putFile(file, metadata);
+      return await fallbackRef.getDownloadURL();
+    }
   }
 
   /// Delete image from storage given its download URL (ignore if not found)
