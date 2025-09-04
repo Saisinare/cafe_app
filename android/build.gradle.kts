@@ -26,6 +26,18 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
     project.evaluationDependsOn(":app")
+
+    // Workaround for plugins that don't declare a namespace (AGP 8+ requirement)
+    if (project.name == "blue_thermal_printer") {
+        plugins.withId("com.android.library") {
+            extensions.findByType(com.android.build.gradle.LibraryExtension::class.java)?.apply {
+                if (namespace == null || namespace!!.isBlank()) {
+                    // Set a stable namespace to satisfy AGP
+                    namespace = "com.blue_thermal_printer"
+                }
+            }
+        }
+    }
 }
 
 // Clean task

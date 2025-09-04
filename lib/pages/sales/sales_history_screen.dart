@@ -117,7 +117,7 @@ class SalesHistoryScreen extends StatelessWidget {
                           if (!connected) {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Failed to connect to ${device.name ?? 'printer'}')),
+                                SnackBar(content: Text('Failed to connect to ${device.name}')),
                               );
                             }
                             return;

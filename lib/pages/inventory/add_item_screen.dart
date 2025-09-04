@@ -81,9 +81,14 @@ class _AddItemScreenState extends State<AddItemScreen> {
         final newUrl = await FirestoreService.instance.uploadItemImage(_pickedImage!);
         // Optionally delete old image (avoid orphaned storage files)
         final oldUrl = widget.existingItem?['imageUrl'];
-        if (oldUrl != null && oldUrl.isNotEmpty && oldUrl != newUrl) {
-          await FirestoreService.instance.deleteItemImageByUrl(oldUrl);
-        }
+if (oldUrl != null && oldUrl.isNotEmpty) {
+  try {
+    await FirestoreService.instance.deleteItemImageByUrl(oldUrl);
+  } catch (e) {
+    debugPrint("Old image delete failed: $e"); // don't block saving
+  }
+}
+
         imageUrl = newUrl;
       }
 

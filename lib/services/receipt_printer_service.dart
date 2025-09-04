@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:blue_thermal_printer/blue_thermal_printer.dart';
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:intl/intl.dart';
 import '../models/sales.dart';
 
@@ -7,23 +8,25 @@ class ReceiptPrinterService {
   ReceiptPrinterService._();
   static final instance = ReceiptPrinterService._();
 
-  final BlueThermalPrinter _printer = BlueThermalPrinter.instance;
-
-  Future<List<BluetoothDevice>> scanDevices() async {
+  Future<List<BluetoothInfo>> scanDevices() async {
     try {
-      final bonded = await _printer.getBondedDevices();
-      return bonded;
+      final hasPermission = await PrintBluetoothThermal.isPermissionBluetoothGranted;
+      if (hasPermission != true) {
+        return <BluetoothInfo>[];
+      }
+      final devices = await PrintBluetoothThermal.pairedBluetooths;
+      return devices;
     } catch (_) {
-      return <BluetoothDevice>[];
+      return <BluetoothInfo>[];
     }
   }
 
-  Future<bool> connect(BluetoothDevice device) async {
+  Future<bool> connect(BluetoothInfo device) async {
     try {
-      final isConnected = await _printer.isConnected ?? false;
-      if (isConnected) return true;
-      await _printer.connect(device);
-      return await _printer.isConnected ?? false;
+      final connected = await PrintBluetoothThermal.connectionStatus;
+      if (connected == true) return true;
+      final ok = await PrintBluetoothThermal.connect(macPrinterAddress: device.macAdress);
+      return ok == true;
     } catch (_) {
       return false;
     }
@@ -31,7 +34,7 @@ class ReceiptPrinterService {
 
   Future<void> disconnect() async {
     try {
-      await _printer.disconnect();
+      await PrintBluetoothThermal.disconnect;
     } catch (_) {}
   }
 
@@ -42,25 +45,26 @@ class ReceiptPrinterService {
     String? addressLine2,
     String? contact,
     String? invoiceNumber,
-    double gstRate = 0.0, // e.g., 0.05 for 5%
+    double gstRate = 0.0,
   }) async {
     try {
-      final connected = await _printer.isConnected ?? false;
-      if (!connected) return false;
+      final isConnected = await PrintBluetoothThermal.connectionStatus;
+      if (isConnected != true) return false;
 
-      // Helpers for 58mm (~32 chars per line at font size 0)
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(PaperSize.mm58, profile);
+      List<int> bytes = [];
+
+      // Helpers for 58mm
       const int lineWidth = 32;
       String line([String ch = '-']) => List.filled(lineWidth, ch).join();
-
       String center(String text) {
         final t = text.trim();
         if (t.length >= lineWidth) return t.substring(0, lineWidth);
         final pad = (lineWidth - t.length) ~/ 2;
         return ' ' * pad + t;
       }
-
       String col4(String c1, String c2, String c3, String c4) {
-        // widths tuned for 58mm: item 12, qty 3, rate 7, amt 8
         String t1 = c1.length > 12 ? c1.substring(0, 12) : c1.padRight(12);
         String t2 = c2.padLeft(3);
         String t3 = c3.padLeft(7);
@@ -68,72 +72,70 @@ class ReceiptPrinterService {
         final s = '$t1$t2$t3$t4';
         return s.length > lineWidth ? s.substring(0, lineWidth) : s;
       }
-
       String money(double v) => v.toStringAsFixed(2);
+
       final dateStr = DateFormat('dd-MMM-yyyy').format(sale.createdAt);
       final timeStr = DateFormat('h:mm a').format(sale.createdAt);
       final inv = invoiceNumber ?? (sale.id ?? '');
 
       // Header
-      _printer.printCustom(center(businessName), 1, 1);
+      bytes += generator.text(center(businessName), styles: PosStyles(bold: true, height: PosTextSize.size2, width: PosTextSize.size2), linesAfter: 0);
       if (addressLine1 != null && addressLine1.trim().isNotEmpty) {
-        _printer.printCustom(center(addressLine1), 0, 1);
+        bytes += generator.text(center(addressLine1));
       }
       if (addressLine2 != null && addressLine2.trim().isNotEmpty) {
-        _printer.printCustom(center(addressLine2), 0, 1);
+        bytes += generator.text(center(addressLine2));
       }
       if (contact != null && contact.trim().isNotEmpty) {
-        _printer.printCustom(center('Contact: $contact'), 0, 1);
+        bytes += generator.text(center('Contact: $contact'));
       }
-      _printer.printCustom(line(), 0, 1);
+      bytes += generator.text(line());
 
       // Invoice meta
-      if (inv.isNotEmpty) _printer.printCustom('Invoice No: $inv', 0, 0);
-      _printer.printCustom('Date: $dateStr  Time: $timeStr', 0, 0);
-      _printer.printCustom(line(), 0, 1);
+      if (inv.isNotEmpty) bytes += generator.text('Invoice No: $inv');
+      bytes += generator.text('Date: $dateStr  Time: $timeStr');
+      bytes += generator.text(line());
 
-      // Items Header
-      _printer.printCustom(col4('Item', 'Qty', 'Rate', 'Amount'), 0, 0);
-      _printer.printCustom(line(), 0, 0);
+      // Items header
+      bytes += generator.text(col4('Item', 'Qty', 'Rate', 'Amount'));
+      bytes += generator.text(line());
       for (final it in sale.items) {
-        _printer.printCustom(
+        bytes += generator.text(
           col4(
             it.itemName,
             it.quantity.toString(),
             money(it.price),
             money(it.totalPrice),
           ),
-          0,
-          0,
         );
       }
-      _printer.printCustom(line(), 0, 0);
+      bytes += generator.text(line());
 
       // Totals
-      // Show Subtotal -> Discount -> Service -> Total
-      _printer.printCustom(col4('', '', 'Total', money(sale.subtotal)), 0, 0);
+      bytes += generator.text(col4('', '', 'Total', money(sale.subtotal)));
       if (sale.discount > 0) {
-        _printer.printCustom(col4('', '', 'Discount', money(sale.discount)), 0, 0);
+        bytes += generator.text(col4('', '', 'Discount', money(sale.discount)));
       }
       if (gstRate > 0) {
         final gstAmount = (sale.subtotal - sale.discount + sale.serviceCharge) * gstRate;
         final pct = (gstRate * 100).toStringAsFixed(0);
-        _printer.printCustom(col4('', '', 'GST ($pct%)', money(gstAmount)), 0, 0);
+        bytes += generator.text(col4('', '', 'GST ($pct%)', money(gstAmount)));
       }
       if (sale.serviceCharge > 0) {
-        _printer.printCustom(col4('', '', 'Service', money(sale.serviceCharge)), 0, 0);
+        bytes += generator.text(col4('', '', 'Service', money(sale.serviceCharge)));
       }
-      _printer.printCustom(line(), 0, 0);
-      _printer.printCustom(col4('', '', 'Grand Total', money(sale.totalAmount)), 1, 0);
-      _printer.printCustom(line(), 0, 0);
+      bytes += generator.text(line());
+      bytes += generator.text(col4('', '', 'Grand Total', money(sale.totalAmount)), styles: PosStyles(bold: true));
+      bytes += generator.text(line());
 
       // Footer
-      _printer.printCustom(center('Thank you for shopping!'), 0, 1);
-      _printer.printCustom(center('Visit again soon.'), 0, 1);
-      _printer.printNewLine();
-      _printer.paperCut();
+      bytes += generator.text(center('Thank you for shopping!'));
+      bytes += generator.text(center('Visit again soon.'));
+      bytes += generator.feed(2);
+      bytes += generator.cut();
 
-      return true;
+      final ok = await PrintBluetoothThermal.writeBytes(bytes);
+      return ok == true;
     } catch (_) {
       return false;
     }
