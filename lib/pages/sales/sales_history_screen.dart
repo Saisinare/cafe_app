@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/firestore_service.dart';
 import '../../models/sales.dart';
 import '../../services/receipt_printer_service.dart';
+ 
 
 class SalesHistoryScreen extends StatelessWidget {
   const SalesHistoryScreen({super.key});
@@ -102,6 +103,35 @@ class SalesHistoryScreen extends StatelessWidget {
                       GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: () async {
+                          // Ask for custom footer before printing
+                          final footer = await showDialog<String>(
+                            context: context,
+                            builder: (ctx) {
+                              final controller = TextEditingController(text: 'Thank you! Visit again.');
+                              return AlertDialog(
+                                title: const Text('Custom Footer'),
+                                content: TextField(
+                                  controller: controller,
+                                  maxLines: 2,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Enter footer text (optional)'
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, null),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+                                    child: const Text('Print'),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                          if (footer == null) return;
+
                           final devices = await ReceiptPrinterService.instance.scanDevices();
                           if (devices.isEmpty) {
                             if (context.mounted) {
@@ -163,6 +193,7 @@ class SalesHistoryScreen extends StatelessWidget {
                             contact: contact.isEmpty ? null : contact,
                             invoiceNumber: sale.id,
                             gstRate: gstRateVal > 1 ? gstRateVal / 100.0 : gstRateVal,
+                            customFooter: footer.isEmpty ? null : footer,
                           );
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -334,6 +365,7 @@ class SalesHistoryScreen extends StatelessWidget {
                                   foregroundColor: Colors.white,
                                 ),
                               ),
+                              
                               ElevatedButton.icon(
                                 onPressed: () async {
                                   final confirm = await showDialog<bool>(
@@ -398,3 +430,5 @@ class SalesHistoryScreen extends StatelessWidget {
     );
   }
 } 
+
+ 

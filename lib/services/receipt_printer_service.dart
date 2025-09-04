@@ -46,6 +46,7 @@ class ReceiptPrinterService {
     String? contact,
     String? invoiceNumber,
     double gstRate = 0.0,
+    String? customFooter,
   }) async {
     try {
       final isConnected = await PrintBluetoothThermal.connectionStatus;
@@ -129,8 +130,15 @@ class ReceiptPrinterService {
       bytes += generator.text(line());
 
       // Footer
-      bytes += generator.text(center('Thank you for shopping!'));
-      bytes += generator.text(center('Visit again soon.'));
+      if (customFooter != null && customFooter.trim().isNotEmpty) {
+        final lines = customFooter.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty);
+        for (final l in lines) {
+          bytes += generator.text(center(l));
+        }
+      } else {
+        bytes += generator.text(center('Thank you for shopping!'));
+        bytes += generator.text(center('Visit again soon.'));
+      }
       bytes += generator.feed(2);
       bytes += generator.cut();
 

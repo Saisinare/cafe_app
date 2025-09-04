@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'sales_history_screen.dart';
 import '../../services/firestore_service.dart';
 import '../../models/sales.dart';
 
@@ -147,26 +148,7 @@ class _SalesScreenState extends State<SalesScreen> {
       return;
     }
 
-    if (nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter customer name')),
-      );
-      return;
-    }
-
-    if (paymentMode == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select payment mode')),
-      );
-      return;
-    }
-
-    if (parcelMode == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select parcel mode')),
-      );
-      return;
-    }
+    // Removed hard requirements for customer name, payment mode and parcel mode
 
     setState(() => _isLoading = true);
 
@@ -182,12 +164,12 @@ class _SalesScreenState extends State<SalesScreen> {
         serviceCharge: serviceCharge,
         totalAmount: totalAmount,
         amountReceived: double.tryParse(amountReceivedController.text) ?? 0,
-        paymentMode: paymentMode!,
+        paymentMode: paymentMode ?? '',
         paymentReceived: paymentReceived,
         billingTerm: billingTerm,
         billDueDate: billDueDate,
         deliveryState: deliveryState,
-        parcelMode: parcelMode!,
+        parcelMode: parcelMode ?? '',
         note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -199,7 +181,10 @@ class _SalesScreenState extends State<SalesScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Sale completed successfully!')),
         );
-        Navigator.pop(context);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const SalesHistoryScreen()),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -383,7 +368,7 @@ class _SalesScreenState extends State<SalesScreen> {
                   TextField(
                     controller: nameController,
                     decoration: const InputDecoration(
-                      labelText: "Customer Name *",
+                      labelText: "Customer Name",
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -419,7 +404,7 @@ class _SalesScreenState extends State<SalesScreen> {
                   DropdownButtonFormField<String>(
                     value: paymentMode,
                     decoration: const InputDecoration(
-                      labelText: "Payment Mode *",
+                      labelText: "Payment Mode",
                       border: OutlineInputBorder(),
                     ),
                     items: ["Cash", "Card", "UPI", "Bank Transfer"]
@@ -511,7 +496,7 @@ class _SalesScreenState extends State<SalesScreen> {
                   DropdownButtonFormField<String>(
                     value: parcelMode,
                     decoration: const InputDecoration(
-                      labelText: "Parcel Mode *",
+                      labelText: "Parcel Mode",
                       border: OutlineInputBorder(),
                     ),
                     items: ["Dine-in", "Takeaway", "Delivery"]
