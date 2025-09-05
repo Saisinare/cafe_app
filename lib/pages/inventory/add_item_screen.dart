@@ -24,6 +24,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
   late final TextEditingController _priceCtrl;
   late final TextEditingController _descCtrl;
   late String selectedCategory;
+  late String selectedUnit;
 
   bool get isEditing => widget.existingItem != null;
 
@@ -38,6 +39,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
 
     // Set a default category - will be updated when categories are loaded
     selectedCategory = "Uncategorized";
+    selectedUnit = (existing?['unit'] ?? 'Pieces');
   }
 
   @override
@@ -81,13 +83,13 @@ class _AddItemScreenState extends State<AddItemScreen> {
         final newUrl = await FirestoreService.instance.uploadItemImage(_pickedImage!);
         // Optionally delete old image (avoid orphaned storage files)
         final oldUrl = widget.existingItem?['imageUrl'];
-if (oldUrl != null && oldUrl.isNotEmpty) {
-  try {
-    await FirestoreService.instance.deleteItemImageByUrl(oldUrl);
-  } catch (e) {
-    debugPrint("Old image delete failed: $e"); // don't block saving
-  }
-}
+        if (oldUrl != null && oldUrl.isNotEmpty) {
+          try {
+            await FirestoreService.instance.deleteItemImageByUrl(oldUrl);
+          } catch (e) {
+            debugPrint("Old image delete failed: $e"); // don't block saving
+          }
+        }
 
         imageUrl = newUrl;
       }
@@ -100,6 +102,7 @@ if (oldUrl != null && oldUrl.isNotEmpty) {
           stockQty: qty,
           price: price,
           category: selectedCategory,
+          unit: selectedUnit,
           imageUrl: imageUrl,
           description: desc,
         );
@@ -109,6 +112,7 @@ if (oldUrl != null && oldUrl.isNotEmpty) {
           stockQty: qty,
           price: price,
           category: selectedCategory,
+          unit: selectedUnit,
           imageUrl: imageUrl,
           description: desc,
         );
@@ -342,53 +346,143 @@ if (oldUrl != null && oldUrl.isNotEmpty) {
                   ),
                   const SizedBox(height: 16),
 
-                  // Quantity and Price row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _qtyCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Quantity',
-                            prefixIcon: Icon(Icons.shopping_cart),
-                            border: OutlineInputBorder(),
+                  // Unit, Quantity and Price (responsive)
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 380;
+                      if (isNarrow) {
+                        return Column(
+                          children: [
+                            DropdownButtonFormField<String>(
+                              value: selectedUnit,
+                              decoration: const InputDecoration(
+                                labelText: 'Unit',
+                                prefixIcon: Icon(Icons.straighten),
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                'Pieces', 'Kilograms', 'Grams', 'Litres', 'Millilitres', 'Boxes', 'Packs', 'Dozens'
+                              ].map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                              onChanged: (v) {
+                                if (v != null) setState(() => selectedUnit = v);
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _qtyCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Quantity',
+                                      prefixIcon: Icon(Icons.shopping_cart),
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'Required';
+                                      }
+                                      final qty = int.tryParse(value);
+                                      if (qty == null || qty < 0) {
+                                        return 'Invalid quantity';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _priceCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Price (₹)',
+                                      prefixIcon: Icon(Icons.currency_rupee_sharp),
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'Required';
+                                      }
+                                      final price = double.tryParse(value);
+                                      if (price == null || price < 0) {
+                                        return 'Invalid price';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: selectedUnit,
+                              decoration: const InputDecoration(
+                                labelText: 'Unit',
+                                prefixIcon: Icon(Icons.straighten),
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                'Pieces', 'Kilograms', 'Grams', 'Litres', 'Millilitres', 'Boxes', 'Packs', 'Dozens'
+                              ].map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                              onChanged: (v) {
+                                if (v != null) setState(() => selectedUnit = v);
+                              },
+                            ),
                           ),
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Required';
-                            }
-                            final qty = int.tryParse(value);
-                            if (qty == null || qty < 0) {
-                              return 'Invalid quantity';
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _priceCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Price (₹)',
-                            prefixIcon: Icon(Icons.currency_rupee_sharp),
-                            border: OutlineInputBorder(),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _qtyCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Quantity',
+                                prefixIcon: Icon(Icons.shopping_cart),
+                                border: OutlineInputBorder(),
+                              ),
+                              keyboardType: TextInputType.number,
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Required';
+                                }
+                                final qty = int.tryParse(value);
+                                if (qty == null || qty < 0) {
+                                  return 'Invalid quantity';
+                                }
+                                return null;
+                              },
+                            ),
                           ),
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Required';
-                            }
-                            final price = double.tryParse(value);
-                            if (price == null || price < 0) {
-                              return 'Invalid price';
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
-                    ],
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _priceCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Price (₹)',
+                                prefixIcon: Icon(Icons.currency_rupee_sharp),
+                                border: OutlineInputBorder(),
+                              ),
+                              keyboardType: TextInputType.numberWithOptions(decimal: true),
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Required';
+                                }
+                                final price = double.tryParse(value);
+                                if (price == null || price < 0) {
+                                  return 'Invalid price';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
 

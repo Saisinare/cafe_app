@@ -42,6 +42,7 @@ class FirestoreService {
       'quantity': (d['stockQty'] ?? 0).toString(),
       'price': (d['price'] ?? 0).toString(),
       'category': (d['category'] ?? '').toString(),
+      'unit': (d['unit'] ?? '').toString(),
       'imageUrl': (d['imageUrl'] ?? '').toString(),
       'description': (d['description'] ?? '').toString(),
     };
@@ -262,6 +263,7 @@ class FirestoreService {
     required int stockQty,
     required double price,
     required String category,
+    String? unit,
     String? imageUrl,
     String? description,
   }) async {
@@ -275,6 +277,7 @@ class FirestoreService {
       'stockQty': stockQty,
       'price': price,
       'category': category,
+      'unit': unit ?? 'Pieces',
       'imageUrl': imageUrl ?? '',
       'description': description ?? '',
       'createdAt': now,
@@ -289,6 +292,7 @@ class FirestoreService {
     int? stockQty,
     double? price,
     String? category,
+    String? unit,
     String? imageUrl,
     String? description,
   }) async {
@@ -309,6 +313,7 @@ class FirestoreService {
       if (stockQty != null) 'stockQty': stockQty,
       if (price != null) 'price': price,
       if (category != null) 'category': category,
+      if (unit != null) 'unit': unit,
       if (imageUrl != null) 'imageUrl': imageUrl,
       if (description != null) 'description': description,
       'updatedAt': FieldValue.serverTimestamp(),
