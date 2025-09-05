@@ -181,10 +181,31 @@ class _SalesScreenState extends State<SalesScreen> {
       // Auto-print receipt
       try {
         final devices = await ReceiptPrinterService.instance.scanDevices();
-        if (devices.isNotEmpty) {
+        if (devices.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Printer not connected')),
+            );
+          }
+          // Return to Home screen
+          if (mounted) Navigator.pop(context);
+        } else {
           final device = devices.first;
           final connected = await ReceiptPrinterService.instance.connect(device);
-          if (connected) {
+          if (!connected) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Printer not connected')),
+              );
+            }
+            // Return to Home screen
+            if (mounted) Navigator.pop(context);
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Receipt printing...')),
+              );
+            }
             String? userId = FirestoreService.instance.currentUserId;
             Map<String, dynamic>? userData;
             if (userId != null) {
@@ -225,10 +246,7 @@ class _SalesScreenState extends State<SalesScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Sale completed successfully!')),
         );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const SalesHistoryScreen()),
-        );
+        // Stay on the details page; do not navigate away
       }
     } catch (e) {
       if (mounted) {
