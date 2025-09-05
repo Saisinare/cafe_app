@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'sales_history_screen.dart';
+import '../../services/receipt_printer_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/sales.dart';
 
@@ -175,7 +176,50 @@ class _SalesScreenState extends State<SalesScreen> {
         updatedAt: DateTime.now(),
       );
 
-      await FirestoreService.instance.createSalesTransaction(transaction);
+      final saleId = await FirestoreService.instance.createSalesTransaction(transaction);
+      
+      // Auto-print receipt
+      try {
+        final devices = await ReceiptPrinterService.instance.scanDevices();
+        if (devices.isNotEmpty) {
+          final device = devices.first;
+          final connected = await ReceiptPrinterService.instance.connect(device);
+          if (connected) {
+            String? userId = FirestoreService.instance.currentUserId;
+            Map<String, dynamic>? userData;
+            if (userId != null) {
+              userData = await FirestoreService.instance.getUserData(userId);
+            }
+            final businessName = (userData?['businessName'] ?? userData?['name'] ?? 'Receipt').toString();
+            String? addressLine1;
+            String? addressLine2;
+            if (userData != null) {
+              final addr = (userData['address'] ?? '').toString();
+              if (addr.isNotEmpty) {
+                final parts = addr.split(',');
+                addressLine1 = parts.isNotEmpty ? parts.first.trim() : null;
+                addressLine2 = parts.length > 1 ? parts.sublist(1).join(',').trim() : null;
+              } else {
+                addressLine1 = (userData['addressLine1'] ?? '').toString().trim();
+                addressLine2 = (userData['addressLine2'] ?? '').toString().trim();
+                if (addressLine1.isEmpty) addressLine1 = null;
+                if (addressLine2.isEmpty) addressLine2 = null;
+              }
+            }
+            final contact = (userData?['phone'] ?? userData?['contact'] ?? userData?['mobile'] ?? '').toString();
+
+            await ReceiptPrinterService.instance.printSaleReceipt(
+              transaction,
+              businessName: businessName,
+              addressLine1: addressLine1,
+              addressLine2: addressLine2,
+              contact: contact.isEmpty ? null : contact,
+              invoiceNumber: saleId,
+              customFooter: 'Thank you\nVisit again..!'
+            );
+          }
+        }
+      } catch (_) {}
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
