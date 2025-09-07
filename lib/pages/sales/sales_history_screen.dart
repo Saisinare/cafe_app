@@ -276,7 +276,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                             userData = await FirestoreService.instance.getUserData(userId);
                           }
 
-                          final businessName = (userData?['businessName'] ?? userData?['name'] ?? '');
+                          final businessName = (userData?['cafeName'] ?? userData?['businessName'] ?? userData?['name'] ?? '');
                           String? addressLine1;
                           String? addressLine2;
                           if (userData != null) {

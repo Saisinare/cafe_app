@@ -241,7 +241,7 @@ class _SalesScreenState extends State<SalesScreen> {
             if (userId != null) {
               userData = await FirestoreService.instance.getUserData(userId);
             }
-            final businessName = (userData?['businessName'] ?? userData?['name'] ?? 'Receipt').toString();
+            final businessName = (userData?['cafeName'] ?? userData?['businessName'] ?? userData?['name'] ?? 'Receipt').toString();
             String? addressLine1;
             String? addressLine2;
             if (userData != null) {
