@@ -76,12 +76,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
             .doc('privacy')
             .get();
 
+        // Load receipt preferences
+        final receiptDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('preferences')
+            .doc('receipt')
+            .get();
+
+        // Load printer preferences
+        final printerDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('preferences')
+            .doc('printer')
+            .get();
+
         // Store preferences for use in dialogs
         if (notificationDoc.exists) {
           // TODO: Use these preferences in notification settings
         }
         if (privacyDoc.exists) {
           // TODO: Use these preferences in privacy settings
+        }
+        if (receiptDoc.exists) {
+          // TODO: Use these preferences in receipt settings
+        }
+        if (printerDoc.exists) {
+          // TODO: Use these preferences in printer settings
         }
       }
     } catch (e) {
@@ -1748,6 +1770,291 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  void _showReceiptSettings() {
+    // Default values
+    String headerText = 'Thank you for your business!';
+    String footerText = 'Visit again soon!';
+    double headerFontSize = 16.0;
+    double footerFontSize = 14.0;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6F4E37).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.receipt_long,
+                      color: Color(0xFF6F4E37),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Receipt Settings',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header Text
+                    TextField(
+                      controller: TextEditingController(text: headerText),
+                      decoration: const InputDecoration(
+                        labelText: 'Header Text',
+                        hintText: 'Enter header text for receipts',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => headerText = value,
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Header Font Size
+                    Row(
+                      children: [
+                        const Text('Header Font Size: '),
+                        Expanded(
+                          child: Slider(
+                            value: headerFontSize,
+                            min: 10.0,
+                            max: 24.0,
+                            divisions: 14,
+                            label: '${headerFontSize.toInt()}px',
+                            onChanged: (value) {
+                              setState(() {
+                                headerFontSize = value;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Footer Text
+                    TextField(
+                      controller: TextEditingController(text: footerText),
+                      decoration: const InputDecoration(
+                        labelText: 'Footer Text',
+                        hintText: 'Enter footer text for receipts',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => footerText = value,
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Footer Font Size
+                    Row(
+                      children: [
+                        const Text('Footer Font Size: '),
+                        Expanded(
+                          child: Slider(
+                            value: footerFontSize,
+                            min: 10.0,
+                            max: 24.0,
+                            divisions: 14,
+                            label: '${footerFontSize.toInt()}px',
+                            onChanged: (value) {
+                              setState(() {
+                                footerFontSize = value;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    _saveReceiptSettings(headerText, footerText, headerFontSize, footerFontSize);
+                    Navigator.of(context).pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6F4E37),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Save Settings'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showPrinterSettings() {
+    bool bluetoothEnabled = true;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6F4E37).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.bluetooth,
+                      color: Color(0xFF6F4E37),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Printer Settings',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SwitchListTile(
+                    title: const Text('Enable Bluetooth Printing'),
+                    subtitle: const Text('Allow automatic receipt printing via Bluetooth'),
+                    value: bluetoothEnabled,
+                    onChanged: (value) {
+                      setState(() {
+                        bluetoothEnabled = value;
+                      });
+                    },
+                    activeColor: const Color(0xFF6F4E37),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    _savePrinterSettings(bluetoothEnabled);
+                    Navigator.of(context).pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6F4E37),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Save Settings'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _saveReceiptSettings(String headerText, String footerText, double headerFontSize, double footerFontSize) async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('preferences')
+            .doc('receipt')
+            .set({
+          'headerText': headerText,
+          'footerText': footerText,
+          'headerFontSize': headerFontSize,
+          'footerFontSize': footerFontSize,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Receipt settings saved successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save receipt settings: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _savePrinterSettings(bool bluetoothEnabled) async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('preferences')
+            .doc('printer')
+            .set({
+          'bluetoothEnabled': bluetoothEnabled,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Printer settings saved successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save printer settings: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1833,6 +2140,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           subtitle: 'Customize app appearance and behavior',
                           onTap: () {
                             _showAppPreferences();
+                          },
+                        ),
+                        _buildSettingTile(
+                          icon: Icons.receipt_long,
+                          title: 'Receipt Settings',
+                          subtitle: 'Configure receipt header, footer and font size',
+                          onTap: () {
+                            _showReceiptSettings();
+                          },
+                        ),
+                        _buildSettingTile(
+                          icon: Icons.bluetooth,
+                          title: 'Printer Settings',
+                          subtitle: 'Manage Bluetooth printer connection',
+                          onTap: () {
+                            _showPrinterSettings();
                           },
                         ),
 

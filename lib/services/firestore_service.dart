@@ -340,23 +340,16 @@ class FirestoreService {
 
   // ---------- Sales CRUD ----------
   Future<String> createSalesTransaction(SalesTransaction transaction) async {
-    final userId = currentUserId;
+final userId = currentUserId;
     if (userId == null) throw Exception('User not authenticated');
 
-    // Create the sales transaction
+    // Create the sales transaction without adjusting stock
+    // Stock should be managed separately through inventory management
     final doc = await _sales.add(transaction.toMap());
-    
-    // Update stock quantities for all items in the sale
-    for (final item in transaction.items) {
-      await adjustStock(
-        id: item.itemId,
-        delta: -item.quantity,
-        reason: 'sale_${doc.id}',
-      );
-    }
     
     return doc.id;
   }
+
 
   Future<List<SalesTransaction>> getSalesTransactions() async {
     final userId = currentUserId;

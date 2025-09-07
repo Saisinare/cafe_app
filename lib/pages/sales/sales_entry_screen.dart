@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'sales_history_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/receipt_printer_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/sales.dart';
@@ -180,6 +180,36 @@ class _SalesScreenState extends State<SalesScreen> {
       
       // Auto-print receipt
       try {
+        // Check if Bluetooth printing is enabled
+        bool bluetoothEnabled = true;
+        try {
+          final printerDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(FirebaseAuth.instance.currentUser!.uid)
+              .collection('preferences')
+              .doc('printer')
+              .get();
+          
+          if (printerDoc.exists) {
+            final printerData = printerDoc.data() as Map<String, dynamic>;
+            bluetoothEnabled = printerData['bluetoothEnabled'] ?? true;
+          }
+        } catch (e) {
+          // Use default if settings can't be loaded
+          bluetoothEnabled = true;
+        }
+
+        if (!bluetoothEnabled) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Bluetooth printing is disabled in settings')),
+            );
+          }
+          // Return to Home screen
+          if (mounted) Navigator.pop(context);
+          return;
+        }
+
         final devices = await ReceiptPrinterService.instance.scanDevices();
         if (devices.isEmpty) {
           if (mounted) {
@@ -229,6 +259,33 @@ class _SalesScreenState extends State<SalesScreen> {
             }
             final contact = (userData?['phone'] ?? userData?['contact'] ?? userData?['mobile'] ?? '').toString();
 
+            // Load receipt settings
+            String? customHeader;
+            String? customFooter;
+            double? headerFontSize;
+            double? footerFontSize;
+            
+            try {
+              final receiptDoc = await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(FirebaseAuth.instance.currentUser!.uid)
+                  .collection('preferences')
+                  .doc('receipt')
+                  .get();
+              
+              if (receiptDoc.exists) {
+                final receiptData = receiptDoc.data() as Map<String, dynamic>;
+                customHeader = receiptData['headerText'];
+                customFooter = receiptData['footerText'];
+                headerFontSize = (receiptData['headerFontSize'] ?? 16.0).toDouble();
+                footerFontSize = (receiptData['footerFontSize'] ?? 14.0).toDouble();
+              }
+            } catch (e) {
+              // Use defaults if settings can't be loaded
+              customHeader = 'Thank you for your business!';
+              customFooter = 'Visit again soon!';
+            }
+
             await ReceiptPrinterService.instance.printSaleReceipt(
               transaction,
               businessName: businessName,
@@ -236,7 +293,10 @@ class _SalesScreenState extends State<SalesScreen> {
               addressLine2: addressLine2,
               contact: contact.isEmpty ? null : contact,
               invoiceNumber: saleId,
-              customFooter: 'Thank you\nVisit again..!'
+              customHeader: customHeader,
+              customFooter: customFooter,
+              headerFontSize: headerFontSize,
+              footerFontSize: footerFontSize,
             );
           }
         }

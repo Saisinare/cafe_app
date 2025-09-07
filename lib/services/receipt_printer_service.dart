@@ -47,6 +47,9 @@ class ReceiptPrinterService {
     String? invoiceNumber,
     double gstRate = 0.0,
     String? customFooter,
+    String? customHeader,
+    double? headerFontSize,
+    double? footerFontSize,
   }) async {
     try {
       final isConnected = await PrintBluetoothThermal.connectionStatus;
@@ -80,7 +83,16 @@ class ReceiptPrinterService {
       final inv = invoiceNumber ?? (sale.id ?? '');
 
       // Header
-      bytes += generator.text(center(businessName), styles: PosStyles(bold: true, height: PosTextSize.size2, width: PosTextSize.size2), linesAfter: 0);
+      if (customHeader != null && customHeader.trim().isNotEmpty) {
+        final headerStyle = PosStyles(
+          bold: true, 
+          height: PosTextSize.size2, 
+          width: PosTextSize.size2,
+        );
+        bytes += generator.text(center(customHeader), styles: headerStyle, linesAfter: 0);
+      } else {
+        bytes += generator.text(center(businessName), styles: PosStyles(bold: true, height: PosTextSize.size2, width: PosTextSize.size2), linesAfter: 0);
+      }
       if (addressLine1 != null && addressLine1.trim().isNotEmpty) {
         bytes += generator.text(center(addressLine1));
       }
@@ -95,6 +107,14 @@ class ReceiptPrinterService {
       // Invoice meta
       if (inv.isNotEmpty) bytes += generator.text('Invoice No: $inv');
       bytes += generator.text('Date: $dateStr  Time: $timeStr');
+      
+      // Customer information
+      if (sale.customerName.isNotEmpty) {
+        bytes += generator.text('Customer: ${sale.customerName}');
+      }
+      if (sale.customerPhone != null && sale.customerPhone!.isNotEmpty) {
+        bytes += generator.text('Phone: ${sale.customerPhone}');
+      }
       bytes += generator.text(line());
 
       // Items header
@@ -133,7 +153,11 @@ class ReceiptPrinterService {
       if (customFooter != null && customFooter.trim().isNotEmpty) {
         final lines = customFooter.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty);
         for (final l in lines) {
-          bytes += generator.text(center(l));
+          final footerStyle = PosStyles(
+            height: PosTextSize.size1,
+            width: PosTextSize.size1,
+          );
+          bytes += generator.text(center(l), styles: footerStyle);
         }
       } else {
         bytes += generator.text(center('Thank you for shopping!'));

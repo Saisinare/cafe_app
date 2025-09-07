@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/firestore_service.dart';
 import '../../models/sales.dart';
 import '../../models/premium_subscription.dart';
@@ -300,6 +301,33 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                             return parsed ?? 0.0;
                           })();
 
+                          // Load receipt settings
+                          String? customHeader;
+                          String? customFooter;
+                          double? headerFontSize;
+                          double? footerFontSize;
+                          
+                          try {
+                            final receiptDoc = await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(FirestoreService.instance.currentUserId!)
+                                .collection('preferences')
+                                .doc('receipt')
+                                .get();
+                            
+                            if (receiptDoc.exists) {
+                              final receiptData = receiptDoc.data() as Map<String, dynamic>;
+                              customHeader = receiptData['headerText'];
+                              customFooter = receiptData['footerText'];
+                              headerFontSize = (receiptData['headerFontSize'] ?? 16.0).toDouble();
+                              footerFontSize = (receiptData['footerFontSize'] ?? 14.0).toDouble();
+                            }
+                          } catch (e) {
+                            // Use defaults if settings can't be loaded
+                            customHeader = 'Thank you for your business!';
+                            customFooter = 'Visit again soon!';
+                          }
+
                           final ok = await ReceiptPrinterService.instance.printSaleReceipt(
                             sale,
                             businessName: businessName.isEmpty ? 'Receipt' : businessName,
@@ -308,7 +336,10 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                             contact: contact.isEmpty ? null : contact,
                             invoiceNumber: sale.id,
                             gstRate: gstRateVal > 1 ? gstRateVal / 100.0 : gstRateVal,
-                            customFooter: footer.isEmpty ? null : footer,
+                            customHeader: customHeader,
+                            customFooter: footer.isEmpty ? customFooter : footer,
+                            headerFontSize: headerFontSize,
+                            footerFontSize: footerFontSize,
                           );
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
