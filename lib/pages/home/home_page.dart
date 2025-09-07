@@ -11,6 +11,7 @@ import 'package:my_app/pages/finance/receipts_center_screen.dart';
 import 'package:my_app/pages/finance/expense_screen.dart';
 import 'package:my_app/pages/settings/settings_page.dart';
 import 'package:my_app/pages/premium/premium_subscription_screen.dart';
+import 'package:my_app/pages/reports/reports_screen.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:my_app/pages/purchase/purchase_screen.dart';
 import 'package:my_app/services/firestore_service.dart';
@@ -91,6 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
       {"icon": Icons.receipt_long, "label": "Expense"},
       {"icon": Icons.group, "label": "Party"},
       {"icon": Icons.inventory, "label": "Item"},
+      {"icon": Icons.analytics, "label": "Reports"},
     ];
 
     // Removed Sales Invoice options to prevent duplication with Sales History receipts
@@ -147,6 +149,12 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const AddPartyScreen()),
+        );
+        break;
+      case "Reports":
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ReportsScreen()),
         );
         break;
       default:
@@ -514,48 +522,55 @@ class _HomeScreenState extends State<HomeScreen> {
 
       
       // Floating Action Buttons
-      floatingActionButton: Positioned(
-               bottom: 10,
-      right: 20,
-        child: Column(
+      floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // New Item Button - Centered horizontally, closer to bottom
-
-          const SizedBox(height: 8),
-          // Main Add Button with Menu - Positioned to the right
-          Align(
-            alignment: Alignment.centerRight,
-            child: SpeedDial(
-              icon: Icons.add,
-              activeIcon: Icons.close,
-              backgroundColor: Colors.blue,
-              overlayColor: Colors.black,
-              overlayOpacity: 0.4,
-              spacing: 10,
-              spaceBetweenChildren: 8,
-              // Fix positioning for smaller devices
-              childMargin: const EdgeInsets.only(bottom: 16),
-              childPadding: const EdgeInsets.only(bottom: 16),
-              // Ensure proper positioning and prevent overflow
-              buttonSize: const Size(56.0, 56.0),
-              childrenButtonSize: const Size(56.0, 56.0),
-              tooltip: 'Quick Actions',
-              children: _fabOptions.map((option) {
-                return SpeedDialChild(
-                  child: Icon(option["icon"], color: Colors.white),
-                  backgroundColor: Colors.blue,
-                  label: option["label"],
-                  labelStyle: const TextStyle(fontSize: 16),
-                  onTap: () => _handleFabOptionTap(option["label"]),
-                );
-              }).toList(),
+          // New Sale Button - Green FAB
+          FloatingActionButton.extended(
+            heroTag: "new_sale_fab",
+            backgroundColor: Colors.green,
+            tooltip: 'Create New Sale',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SalesScreen()),
+              );
+            },
+            icon: const Icon(Icons.point_of_sale, color: Colors.white),
+            label: const Text(
+              "New Sale",
+              style: TextStyle(color: Colors.white),
             ),
           ),
+          const SizedBox(height: 16),
+          // Main Add Button with Menu - SpeedDial
+          SpeedDial(
+            icon: Icons.add,
+            activeIcon: Icons.close,
+            backgroundColor: Colors.blue,
+            overlayColor: Colors.black,
+            overlayOpacity: 0.4,
+            spacing: 10,
+            spaceBetweenChildren: 8,
+            childMargin: const EdgeInsets.only(bottom: 16),
+            childPadding: const EdgeInsets.only(bottom: 16),
+            buttonSize: const Size(56.0, 56.0),
+            childrenButtonSize: const Size(56.0, 56.0),
+            tooltip: 'Quick Actions',
+            children: _fabOptions.map((option) {
+              return SpeedDialChild(
+                child: Icon(option["icon"], color: Colors.white),
+                backgroundColor: Colors.blue,
+                label: option["label"],
+                labelStyle: const TextStyle(fontSize: 16),
+                onTap: () => _handleFabOptionTap(option["label"]),
+              );
+            }).toList(),
+          ),
         ],
-      ),  
-      ) 
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat, 
     );
   }
 

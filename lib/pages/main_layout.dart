@@ -32,27 +32,6 @@ class _MainLayoutState extends State<MainLayout> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_selectedIndex],
-
-floatingActionButton: FloatingActionButton.extended(
-  heroTag: "new_sale_fab",
-  backgroundColor: Colors.green,
-  tooltip: 'Create New Sale',
-  onPressed: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SalesScreen()),
-    );
-  },
-  icon: const Icon(Icons.point_of_sale, color: Colors.white), // sale icon
-  label: const Text(
-    "New Sale",
-    style: TextStyle(color: Colors.white),
-  ),
-),
-floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-
-
-
       // ✅ Keep normal BottomNavigationBar
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,

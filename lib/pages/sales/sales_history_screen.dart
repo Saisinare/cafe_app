@@ -220,33 +220,8 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                         behavior: HitTestBehavior.opaque,
                         onTap: () async {
                           // Ask for custom footer before printing
-                          final footer = await showDialog<String>(
-                            context: context,
-                            builder: (ctx) {
-                              final controller = TextEditingController(text: 'Thank you! Visit again.');
-                              return AlertDialog(
-                                title: const Text('Custom Footer'),
-                                content: TextField(
-                                  controller: controller,
-                                  maxLines: 2,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Enter footer text (optional)'
-                                  ),
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx, null),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-                                    child: const Text('Print'),
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                          if (footer == null) return;
+                          // Removed custom footer dialog: footer will be loaded from settings
+                          final footer = '';
 
                           final devices = await ReceiptPrinterService.instance.scanDevices();
                           if (devices.isEmpty) {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+import '../../services/receipt_printer_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -1955,6 +1957,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       });
                     },
                     activeColor: const Color(0xFF6F4E37),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Available Printers',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey[700]),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  FutureBuilder<List<BluetoothInfo>>(
+                    future: ReceiptPrinterService.instance.scanDevices(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: LinearProgressIndicator(minHeight: 2),
+                        );
+                      }
+                      final devices = snapshot.data ?? [];
+                      if (devices.isEmpty) {
+                        return const Text('No paired Bluetooth printers found');
+                      }
+                      return SizedBox(
+                        height: 150,
+                        child: ListView.builder(
+                          itemCount: devices.length,
+                          itemBuilder: (ctx, i) {
+                            final d = devices[i];
+                            return ListTile(
+                              leading: const Icon(Icons.print),
+                              title: Text(d.name ?? 'Unknown'),
+                              subtitle: Text(d.macAdress ?? ''),
+                              onTap: () async {
+                                final ok = await ReceiptPrinterService.instance.connect(d);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(ok ? 'Connected to ${d.name}' : 'Failed to connect')),
+                                  );
+                                }
+                              },
+                            );
+                          },
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
