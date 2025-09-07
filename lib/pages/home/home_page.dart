@@ -83,7 +83,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // Options for the floating action menu
   List<Map<String, dynamic>> get _fabOptions {
     final baseOptions = [
-      {"icon": Icons.shopping_cart, "label": "New Sale"},
       {"icon": Icons.history, "label": "Sales History"},
       {"icon": Icons.receipt_long, "label": "Receipts"},
       {"icon": Icons.shopping_bag, "label": "Purchase"},
@@ -105,12 +104,6 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const AddItemScreen()),
-        );
-        break;
-      case "New Sale":
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const SalesScreen()),
         );
         break;
       case "Sales History":
@@ -255,6 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: SingleChildScrollView(
+        
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -298,6 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+            
             const SizedBox(height: 12),
             StreamBuilder<List<Map<String, dynamic>>>(
               stream: _stockAlertsStream,
@@ -517,25 +512,50 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
 
-      // Floating Action Button with Menu
-      floatingActionButton: SpeedDial(
-        icon: Icons.add,
-        activeIcon: Icons.close,
-        backgroundColor: Colors.blue,
-        overlayColor: Colors.black,
-        overlayOpacity: 0.4,
-        spacing: 10,
-        spaceBetweenChildren: 8,
-        children: _fabOptions.map((option) {
-          return SpeedDialChild(
-            child: Icon(option["icon"], color: Colors.white),
-            backgroundColor: Colors.blue,
-            label: option["label"],
-            labelStyle: const TextStyle(fontSize: 16),
-            onTap: () => _handleFabOptionTap(option["label"]),
-          );
-        }).toList(),
-      ),
+      
+      // Floating Action Buttons
+      floatingActionButton: Positioned(
+               bottom: 10,
+      right: 20,
+        child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // New Item Button - Centered horizontally, closer to bottom
+
+          const SizedBox(height: 8),
+          // Main Add Button with Menu - Positioned to the right
+          Align(
+            alignment: Alignment.centerRight,
+            child: SpeedDial(
+              icon: Icons.add,
+              activeIcon: Icons.close,
+              backgroundColor: Colors.blue,
+              overlayColor: Colors.black,
+              overlayOpacity: 0.4,
+              spacing: 10,
+              spaceBetweenChildren: 8,
+              // Fix positioning for smaller devices
+              childMargin: const EdgeInsets.only(bottom: 16),
+              childPadding: const EdgeInsets.only(bottom: 16),
+              // Ensure proper positioning and prevent overflow
+              buttonSize: const Size(56.0, 56.0),
+              childrenButtonSize: const Size(56.0, 56.0),
+              tooltip: 'Quick Actions',
+              children: _fabOptions.map((option) {
+                return SpeedDialChild(
+                  child: Icon(option["icon"], color: Colors.white),
+                  backgroundColor: Colors.blue,
+                  label: option["label"],
+                  labelStyle: const TextStyle(fontSize: 16),
+                  onTap: () => _handleFabOptionTap(option["label"]),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),  
+      ) 
     );
   }
 

@@ -1,14 +1,129 @@
 import 'package:flutter/material.dart';
 import '../../services/firestore_service.dart';
 import '../../models/sales.dart';
+import '../../models/premium_subscription.dart';
 import '../../services/receipt_printer_service.dart';
+import '../premium/premium_subscription_screen.dart';
  
 
-class SalesHistoryScreen extends StatelessWidget {
+class SalesHistoryScreen extends StatefulWidget {
   const SalesHistoryScreen({super.key});
 
   @override
+  State<SalesHistoryScreen> createState() => _SalesHistoryScreenState();
+}
+
+class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
+  PremiumSubscription? _currentSubscription;
+  bool _isLoadingPremium = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPremiumStatus();
+  }
+
+  void _checkPremiumStatus() {
+    try {
+      final subscriptionStream = FirestoreService.instance.streamCurrentUserSubscription();
+      subscriptionStream.listen((subscription) {
+        if (mounted) {
+          setState(() {
+            _currentSubscription = subscription;
+            _isLoadingPremium = false;
+          });
+        }
+      }, onError: (error) {
+        if (mounted) {
+          setState(() {
+            _isLoadingPremium = false;
+          });
+          print('Error checking premium status: $error');
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingPremium = false;
+        });
+      }
+      print('Error setting up premium status stream: $e');
+    }
+  }
+
+
+  @override
   Widget build(BuildContext context) {
+    // Show loading while checking premium status
+    if (_isLoadingPremium) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text("Sales History"),
+          backgroundColor: const Color(0xFF6F4E37),
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Check if user has premium access
+    if (_currentSubscription?.isValid != true) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text("Sales History"),
+          backgroundColor: const Color(0xFF6F4E37),
+          foregroundColor: Colors.white,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.star_border,
+                size: 80,
+                color: Colors.amber,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Premium Feature',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  'Sales History is a premium feature. Upgrade to premium to access detailed sales history, analytics, and more advanced features.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const PremiumSubscriptionScreen()),
+                  );
+                },
+                icon: const Icon(Icons.star),
+                label: const Text('Upgrade to Premium'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6F4E37),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // User has premium access, show the sales history
     return Scaffold(
       appBar: AppBar(
         title: const Text("Sales History"),
@@ -429,6 +544,4 @@ class SalesHistoryScreen extends StatelessWidget {
       ),
     );
   }
-} 
-
- 
+}
